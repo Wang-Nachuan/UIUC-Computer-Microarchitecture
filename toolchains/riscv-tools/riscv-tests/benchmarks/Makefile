@@ -18,6 +18,8 @@ instbasedir = $(UCB_VLSI_HOME)/install
 #--------------------------------------------------------------------
 
 bmarks = \
+	spmm \
+	spatter \
 	median \
 	qsort \
 	rsort \
