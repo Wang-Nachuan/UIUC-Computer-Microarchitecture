@@ -533,6 +533,9 @@ class BoomMSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends BoomModule()
 
     val fence_rdy = Output(Bool())
     val probe_rdy = Output(Bool())
+
+    // [New]
+    val lsu = Flipped(new PrefetchIO())
   })
 
   val req_idx = OHToUInt(io.req.map(_.valid))
@@ -542,8 +545,10 @@ class BoomMSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends BoomModule()
   for (w <- 0 until memWidth)
     io.req(w).ready := false.B
 
-  val prefetcher: DataPrefetcher = if (enablePrefetching) Module(new NLPrefetcher)
-                                                     else Module(new NullPrefetcher)
+  // val prefetcher: DataPrefetcher = if (enablePrefetching) Module(new NLPrefetcher)
+  // val prefetcher: DataPrefetcher = if (enablePrefetching) Module(new LAPrefetcher)
+  //                                                    else Module(new NullPrefetcher)
+  val prefetcher: DataPrefetcher = Module(new NullPrefetcher)
 
   io.prefetch <> prefetcher.io.prefetch
 
@@ -762,4 +767,10 @@ class BoomMSHRFile(implicit edge: TLEdgeOut, p: Parameters) extends BoomModule()
   prefetcher.io.req_val       := RegNext(commit_vals.reduce(_||_))
   prefetcher.io.req_addr      := RegNext(Mux1H(commit_vals, commit_addrs))
   prefetcher.io.req_coh       := RegNext(Mux1H(commit_vals, commit_cohs))
+
+  // [New]
+  prefetcher.io.lsu.ldq := io.lsu.ldq
+  prefetcher.io.lsu.stq := io.lsu.stq
+  io.lsu.ldq_prefetch_fired := prefetcher.io.lsu.ldq_prefetch_fired
+  io.lsu.stq_prefetch_fired := prefetcher.io.lsu.stq_prefetch_fired
 }

@@ -30,6 +30,9 @@ abstract class DataPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends B
     val req_coh    = Input(new ClientMetadata)
 
     val prefetch   = Decoupled(new BoomDCacheReq)
+
+    // [New]
+    val lsu = Flipped(new PrefetchIO())
   })
 }
 
@@ -71,4 +74,49 @@ class NLPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends DataPrefetch
 
 }
 
+/**
+  * Look-ahead prefetcher. Try to prefetch for each instruction whose physical address is ready
+  */
+class LAPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends DataPrefetcher
+{
+  val req_valid = RegInit(false.B)
+  val req_addr  = Reg(UInt(coreMaxAddrBits.W))
+  val req_cmd   = Reg(UInt(M_SZ.W))
+  
+  // 1 if physical address is ready but instruction not fired to memroy
+  val addr_val = io.lsu.ldq.map(s => s.valid && s.bits.addr.valid && !s.bits.addr_is_virtual && !s.bits.executed) ++ io.lsu.stq.map(s => s.valid && s.bits.addr.valid && !s.bits.addr_is_virtual)
+  val addr = io.lsu.ldq.map(s => s.bits.addr.bits) ++ io.lsu.stq.map(s => s.bits.addr.bits)
+  val is_prefetched = io.lsu.ldq.map(s => s.bits.prefetch_fired) ++ io.lsu.stq.map(s => s.bits.prefetch_fired)
+  val fire_prefetch = Wire(Vec(numLdqEntries + numStqEntries, Bool()))
+  var break = false.B
+  var idx = 0
 
+  for (i <- 0 until numLdqEntries + numStqEntries) {
+    fire_prefetch(i) := false.B
+    when (!break && addr_val(i) && !is_prefetched(i)) {
+      break = true.B
+      idx = i
+    }
+  }
+
+  val mshr_req_addr = addr(idx)
+  val cacheable = edge.manager.supportsAcquireBSafe(mshr_req_addr, lgCacheBlockBytes.U)
+  // when (break && cacheable && !req_valid) {
+  when (break && io.req_val && cacheable && !req_valid) {
+    req_valid := true.B
+    req_addr  := mshr_req_addr
+    req_cmd   := M_PFR
+    fire_prefetch(idx) := true.B
+  } .elsewhen (io.prefetch.fire()) {
+    req_valid := false.B
+  }
+
+  io.prefetch.valid            := req_valid && io.mshr_avail
+  io.prefetch.bits.addr        := req_addr
+  io.prefetch.bits.uop         := NullMicroOp
+  io.prefetch.bits.uop.mem_cmd := req_cmd
+  io.prefetch.bits.data        := DontCare
+
+  io.lsu.ldq_prefetch_fired := fire_prefetch.slice(0, numLdqEntries)
+  io.lsu.stq_prefetch_fired := fire_prefetch.slice(numLdqEntries, numLdqEntries + numStqEntries)
+}

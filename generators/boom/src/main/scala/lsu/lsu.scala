@@ -107,6 +107,18 @@ class LSUDMemIO(implicit p: Parameters, edge: TLEdgeOut) extends BoomBundle()(p)
   })
 
   override def cloneType = new LSUDMemIO().asInstanceOf[this.type]
+
+  // [New]
+  val prefetch = new PrefetchIO()
+}
+
+// [New] For prefetcher to inspect status inside LSU
+class PrefetchIO(implicit p: Parameters) extends BoomBundle()(p)
+{
+  val ldq = Output(Vec(numLdqEntries, Valid(new LDQEntry)))
+  val stq = Output(Vec(numStqEntries, Valid(new STQEntry)))
+  val ldq_prefetch_fired = Input(Vec(numLdqEntries, Bool()))
+  val stq_prefetch_fired = Input(Vec(numStqEntries, Bool()))
 }
 
 class LSUCoreIO(implicit p: Parameters) extends BoomBundle()(p)
@@ -186,6 +198,9 @@ class LDQEntry(implicit p: Parameters) extends BoomBundle()(p)
   val forward_stq_idx     = UInt(stqAddrSz.W) // Which store did we get the store-load forward from?
 
   val debug_wb_data       = UInt(xLen.W)
+
+  // [New] For prefetcher to record prefetch status
+  val prefetch_fired      = Bool()
 }
 
 class STQEntry(implicit p: Parameters) extends BoomBundle()(p)
@@ -199,6 +214,9 @@ class STQEntry(implicit p: Parameters) extends BoomBundle()(p)
   val succeeded           = Bool() // D$ has ack'd this, we don't need to maintain this anymore
 
   val debug_wb_data       = UInt(xLen.W)
+
+  // [New] For prefetcher to record prefetch status
+  val prefetch_fired      = Bool()
 }
 
 class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
@@ -210,7 +228,23 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
   val ldq = Reg(Vec(numLdqEntries, Valid(new LDQEntry)))
   val stq = Reg(Vec(numStqEntries, Valid(new STQEntry)))
 
+  // [New]
+  io.dmem.prefetch.ldq := ldq
+  io.dmem.prefetch.stq := stq
 
+  // [New]
+  for (i <- 0 until numLdqEntries) {
+    when (ldq(i).valid && io.dmem.prefetch.ldq_prefetch_fired(i)) {
+      ldq(i).bits.prefetch_fired := true.B
+    }
+  }
+
+  // [New]
+  for (i <- 0 until numStqEntries) {
+    when (stq(i).valid && io.dmem.prefetch.stq_prefetch_fired(i)) {
+      stq(i).bits.prefetch_fired := true.B 
+    }
+  }
 
   val ldq_head         = Reg(UInt(ldqAddrSz.W))
   val ldq_tail         = Reg(UInt(ldqAddrSz.W))
@@ -314,6 +348,9 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
       ldq(ld_enq_idx).bits.observed        := false.B
       ldq(ld_enq_idx).bits.forward_std_val := false.B
 
+      // [New]
+      ldq(ld_enq_idx).bits.prefetch_fired := false.B
+
       assert (ld_enq_idx === io.core.dis_uops(w).bits.ldq_idx, "[lsu] mismatch enq load tag.")
       assert (!ldq(ld_enq_idx).valid, "[lsu] Enqueuing uop is overwriting ldq entries")
     }
@@ -325,6 +362,9 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
       stq(st_enq_idx).bits.data.valid := false.B
       stq(st_enq_idx).bits.committed  := false.B
       stq(st_enq_idx).bits.succeeded  := false.B
+
+      // [New]
+      stq(st_enq_idx).bits.prefetch_fired := false.B
 
       assert (st_enq_idx === io.core.dis_uops(w).bits.stq_idx, "[lsu] mismatch enq store tag.")
       assert (!stq(st_enq_idx).valid, "[lsu] Enqueuing uop is overwriting stq entries")
@@ -1410,6 +1450,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
         stq(i).bits.addr.valid := false.B
         stq(i).bits.data.valid := false.B
         st_brkilled_mask(i)    := true.B
+        // [New]
+        stq(i).bits.prefetch_fired := false.B
       }
     }
 
@@ -1427,6 +1469,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
       {
         ldq(i).valid           := false.B
         ldq(i).bits.addr.valid := false.B
+        // [New]
+        ldq(i).bits.prefetch_fired := false.B
       }
     }
   }
@@ -1466,6 +1510,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
       ldq(idx).bits.order_fail       := false.B
       ldq(idx).bits.forward_std_val  := false.B
 
+      // [New]
+      ldq(idx).bits.prefetch_fired := false.B
     }
 
     if (MEMTRACE_PRINTF) {
@@ -1508,6 +1554,9 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
     stq(stq_head).bits.data.valid := false.B
     stq(stq_head).bits.succeeded  := false.B
     stq(stq_head).bits.committed  := false.B
+
+    // [New]
+    stq(stq_head).bits.prefetch_fired := false.B
 
     stq_head := WrapInc(stq_head, numStqEntries)
     when (stq(stq_head).bits.uop.is_fence)
@@ -1611,6 +1660,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
         stq(i).bits.addr.valid := false.B
         stq(i).bits.data.valid := false.B
         stq(i).bits.uop        := NullMicroOp
+        // [New]
+        stq(i).bits.prefetch_fired := false.B
       }
     }
       .otherwise // exception
@@ -1625,6 +1676,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
           stq(i).bits.addr.valid := false.B
           stq(i).bits.data.valid := false.B
           st_exc_killed_mask(i)  := true.B
+          // [New]
+          stq(i).bits.prefetch_fired := false.B
         }
       }
     }
@@ -1634,6 +1687,8 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
       ldq(i).valid           := false.B
       ldq(i).bits.addr.valid := false.B
       ldq(i).bits.executed   := false.B
+      // [New]
+      ldq(i).bits.prefetch_fired := false.B
     }
   }
 

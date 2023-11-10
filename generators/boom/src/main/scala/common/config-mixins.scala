@@ -524,3 +524,108 @@ class WithSWBPD extends Config((site, here, up) => {
     case other => other
   }
 })
+
+
+// ---------------------
+// Self-defined Configs
+// ---------------------
+
+class WithNLargeBoomsBase(n: Int = 1, overrideIdOffset: Option[Int] = None) extends Config(
+  new WithTAGELBPD ++ // Default to TAGE-L BPD
+  new Config((site, here, up) => {
+    case TilesLocated(InSubsystem) => {
+      val prev = up(TilesLocated(InSubsystem), site)
+      val idOffset = overrideIdOffset.getOrElse(prev.size)
+      (0 until n).map { i =>
+        val coreWidth = 4
+        val memWidth = 2
+        BoomTileAttachParams(
+          tileParams = BoomTileParams(
+            core = BoomCoreParams(
+              fetchWidth = 8,
+              numRobEntries = 96,
+              numIntPhysRegisters = 100,
+              numFpPhysRegisters = 96,
+              numLdqEntries = 24,
+              numStqEntries = 24,
+              maxBrCount = 16,
+              ftq = FtqParameters(nEntries=32),
+              fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
+              enablePrefetching = false,
+
+              /* Don't change below */
+              decodeWidth = coreWidth,  
+              numFetchBufferEntries = coreWidth * 8,
+              numDCacheBanks = memWidth,
+              issueParams = Seq(
+                IssueParams(issueWidth=memWidth, numEntries=16, iqType=IQT_MEM.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=coreWidth, numEntries=32, iqType=IQT_INT.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=1, numEntries=24, iqType=IQT_FP.litValue , dispatchWidth=coreWidth))    
+              /* Don't change above */
+            ),
+            dcache = Some(
+              DCacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=8, nMSHRs=4, nTLBWays=16)
+            ),
+            icache = Some(
+              ICacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=8, fetchBytes=4*4)
+            ),
+            hartId = i + idOffset
+          ),
+          crossingParams = RocketCrossingParams()
+        )
+      } ++ prev
+    }
+    case SystemBusKey => up(SystemBusKey, site).copy(beatBytes = 16)
+    case XLen => 64
+  })
+)
+
+class WithNLargeBoomsLAPrefetch(n: Int = 1, overrideIdOffset: Option[Int] = None) extends Config(
+  new WithTAGELBPD ++ // Default to TAGE-L BPD
+  new Config((site, here, up) => {
+    case TilesLocated(InSubsystem) => {
+      val prev = up(TilesLocated(InSubsystem), site)
+      val idOffset = overrideIdOffset.getOrElse(prev.size)
+      (0 until n).map { i =>
+        val coreWidth = 4
+        val memWidth = 2
+        BoomTileAttachParams(
+          tileParams = BoomTileParams(
+            core = BoomCoreParams(
+              fetchWidth = 8,
+              numRobEntries = 96,
+              numIntPhysRegisters = 100,
+              numFpPhysRegisters = 96,
+              numLdqEntries = 24,
+              numStqEntries = 24,
+              maxBrCount = 16,
+              ftq = FtqParameters(nEntries=32),
+              fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
+              enablePrefetching = true,
+
+              /* Don't change below */
+              decodeWidth = coreWidth,  
+              numFetchBufferEntries = coreWidth * 8,
+              numDCacheBanks = memWidth,
+              issueParams = Seq(
+                IssueParams(issueWidth=memWidth, numEntries=16, iqType=IQT_MEM.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=coreWidth, numEntries=32, iqType=IQT_INT.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=1, numEntries=24, iqType=IQT_FP.litValue , dispatchWidth=coreWidth))    
+              /* Don't change above */
+            ),
+            dcache = Some(
+              DCacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=8, nMSHRs=4, nTLBWays=16)
+            ),
+            icache = Some(
+              ICacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=8, fetchBytes=4*4)
+            ),
+            hartId = i + idOffset
+          ),
+          crossingParams = RocketCrossingParams()
+        )
+      } ++ prev
+    }
+    case SystemBusKey => up(SystemBusKey, site).copy(beatBytes = 16)
+    case XLen => 64
+  })
+)

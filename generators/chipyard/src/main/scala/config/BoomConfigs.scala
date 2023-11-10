@@ -43,3 +43,17 @@ class DromajoBoomConfig extends Config(
   new chipyard.config.WithTraceIO ++                             // enable the traceio
   new boom.common.WithNSmallBooms(1) ++
   new chipyard.config.AbstractConfig)
+
+
+
+// ---------------------
+// Self-defined Configs
+// ---------------------
+
+class LargeBoomBaseConfig extends Config(
+  new boom.common.WithNLargeBoomsBase(1) ++
+  new chipyard.config.AbstractConfig)
+
+class LargeBoomLAPrefetchConfig extends Config(
+  new boom.common.WithNLargeBoomsLAPrefetch(1) ++
+  new chipyard.config.AbstractConfig)
