@@ -1,28 +1,55 @@
 import random
+
+# uniform_pattern(length, gap)
+# returns a pattern of length length with a gap of size gap between each element
 def uniform_pattern(length, gap):
     return [i * gap for i in range(length)]
 
+
+# ms1_pattern(length, gap_locations, gaps)
+# returns a pattern of length length with gaps of size gaps[i] at locations gap_locations[i]
 def ms1_pattern(length, gap_locations, gaps):
     pattern = list(range(length))
-    gaps = list(gaps)
+    
+    # Make sure gaps is a list and has the correct number of elements
+    if not isinstance(gaps, list):
+        raise TypeError("gaps must be a list")
+    if not isinstance(gap_locations, list):
+        raise TypeError("gap_locations must be a list")
+    
     if len(gaps) == 1:
         gaps *= len(gap_locations)
+        
     for i, gl in enumerate(gap_locations):
-        pattern[gl] = pattern[gl-1] + gaps[i]
+        # Ensure the gap location is within the valid range
+        if gl < 1 or gl >= length:
+            raise ValueError("Gap location must be within the range of the pattern")
+        pattern[gl] = pattern[gl - 1] + gaps[i]
+        # Update the values after the gap
+        for j in range(gl + 1, length):
+            pattern[j] = pattern[j - 1] + 1
+    
     return pattern
 
 def laplacian_pattern(dimension, pseudo_order, problem_size):
     pattern = []
-    if dimension == 1:
-        for i in range(-pseudo_order, pseudo_order + 1):
-            pattern.append(i + pseudo_order)
-    elif dimension == 2:
-        for i in range(-pseudo_order, pseudo_order + 1):
-            for j in range(-pseudo_order, pseudo_order + 1):
-                if i != 0 or j != 0:
-                    pattern.append(i * problem_size + j + pseudo_order * (problem_size + 1))
-    # Extend this pattern for dimension 3 and so on...
+    array = []
+    for i in range(0, dimension):
+        array.append(problem_size**i)
+    # print(array)
+    mid = (pseudo_order * problem_size **(dimension - 1))
+    pattern.append(mid)
+    for i in range(1, pseudo_order + 1):
+        for j in range(0, dimension):
+            pattern.append(mid - i * array[j])
+            pattern.append(mid + i * array[j])
+    pattern.sort()
     return pattern
+
+# print(laplacian_pattern(1, 1, 100))  # result: [0, 1, 2]
+# print(laplacian_pattern(2, 1, 100))  # result: [0, 99, 100, 101, 200]
+# print(laplacian_pattern(3, 1, 100))  # result: [0, 9900, 9999, 10000, 10001, 10100, 20000]
+# print(laplacian_pattern(2, 2, 100))  # result: [0, 100, 198, 199, 200, 201, 202, 300, 400]
 
 def safe_eval(expr):
     expr = expr.replace('^', '**')
@@ -52,7 +79,7 @@ def print_array_int(name, array, file=None):
 
 kernel = 0 #TODO
 
-p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian: ")
+p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
 
 if p.lower() == 'u':
     length = int(input("Enter the length of the pattern: "))
@@ -70,11 +97,16 @@ elif p.lower() == 's':
     print("Mostly Stride-1 pattern:", pattern)
 
 elif p.lower() == 'l':
-    dimension = int(input("Enter the dimension of the stencil: "))
-    pseudo_order = int(input("Enter the length of a branch of the stencil: "))
-    problem_size = int(input("Enter the length of each dimension of the problem: "))
+    dimension = int(input("Enter the dimension of the stencil(dimension): "))
+    pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+    problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
     pattern = laplacian_pattern(dimension, pseudo_order, problem_size)
     print("LAPLACIAN pattern:", pattern)
+
+elif p.lower() == 'c':
+    pattern = input("Enter the pattern (comma separated): ")
+    pattern = [int(x) for x in pattern.split(',')]
+    print("Custom pattern:", pattern)
 
 else:
     print("Invalid pattern type entered.")
@@ -99,16 +131,11 @@ source = [random.randint(0, 999) for _ in range(source_size)]
 
 if save_to_file.lower() == 'y':
     with open("dataset.h", "w") as f:
-        f.write(f"const int kernel = {kernel}; // 0 for UNIFORM, 1 for MS1, 2 for LAPLACIAN\n")
+        f.write(f"const int kernel = {kernel}; // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter\n")
         f.write(f"const int delta = {delta};\n")
         f.write(f"const int n = {n};\n")
         f.write(f"const int target_len = {target_len};\n")
         f.write(f"const int pat_len = {len(pattern)};\n")
         print_array_int("pat", pattern, file=f)
         print_array_double("source", source, file=f)
-
-
-
-
-
 
