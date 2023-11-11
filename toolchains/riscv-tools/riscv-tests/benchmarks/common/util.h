@@ -4,6 +4,7 @@
 #define __UTIL_H
 
 extern void setStats(int enable);
+extern void printStats();
 
 #include <stdint.h>
 

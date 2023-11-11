@@ -33,25 +33,47 @@ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t
   return magic_mem[0];
 }
 
-#define NUM_COUNTERS 2
+
+
+#define NUM_COUNTERS 6
 static uintptr_t counters[NUM_COUNTERS];
-static char* counter_names[NUM_COUNTERS];
+// static char* counter_names[NUM_COUNTERS];
+static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", "load", "store"};
 
 void setStats(int enable)
 {
   int i = 0;
+  if (enable) {
+    write_csr(mhpmevent3, 0x0202); // dcache misses
+    write_csr(mhpmevent4, 0x0402); // dcache writeback (eviction)
+    write_csr(mhpmevent5, 0x0200); // load counter
+    write_csr(mhpmevent6, 0x0400); // store counter
+  }
+  
 #define READ_CTR(name) do { \
     while (i >= NUM_COUNTERS) ; \
     uintptr_t csr = read_csr(name); \
-    if (!enable) { csr -= counters[i]; counter_names[i] = #name; } \
+    if (!enable) { csr -= counters[i]; } \
     counters[i++] = csr; \
   } while (0)
 
   READ_CTR(mcycle);
   READ_CTR(minstret);
+  READ_CTR(mhpmcounter3);
+  READ_CTR(mhpmcounter4);
+  READ_CTR(mhpmcounter5);
+  READ_CTR(mhpmcounter6);
 
 #undef READ_CTR
 }
+
+void printStats() {
+  for (int i = 0; i < NUM_COUNTERS; i++) {
+    printf("[RESULT] %s = %ld\n", counter_names[i], counters[i]);
+  }
+}
+
+
 
 void __attribute__((noreturn)) tohost_exit(uintptr_t code)
 {

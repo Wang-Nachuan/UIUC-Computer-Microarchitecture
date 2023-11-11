@@ -10,6 +10,9 @@
 
 void thread_entry(int cid, int nc)
 {
+
+  setStats(1);
+  
   const int R = 8;
   int m, n, p;
   uint64_t s = 0xdeadbeefU;
@@ -33,14 +36,20 @@ void thread_entry(int cid, int nc)
   size_t instret, cycles;
   for (int i = 0; i < R; i++)
   {
-    instret = -read_csr(minstret);
-    cycles = -read_csr(mcycle);
+    // instret = -read_csr(minstret);
+    // cycles = -read_csr(mcycle);
+    
     mm(m, n, p, a, p, b, n, c, n);
-    instret += read_csr(minstret);
-    cycles += read_csr(mcycle);
+    
+    // instret += read_csr(minstret);
+    // cycles += read_csr(mcycle);
   }
 
   asm volatile("fence");
+
+
+  setStats(0);
+  printStats();
 
   printf("C%d: reg block %dx%dx%d, cache block %dx%dx%d\n",
          cid, RBM, RBN, RBK, CBM, CBN, CBK);

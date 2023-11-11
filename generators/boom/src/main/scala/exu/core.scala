@@ -244,7 +244,8 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
   val perfEvents = new freechips.rocketchip.rocket.EventSets(Seq(
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
       ("exception", () => rob.io.com_xcpt.valid),
-      ("nop",       () => false.B),
+      ("load",      () => rob.io.commit.valids(0) && rob.io.commit.uops(0).mem_cmd === M_XRD), // rob.io.commit.fp_val ?
+      ("store",     () => rob.io.commit.valids(0) && rob.io.commit.uops(0).mem_cmd === M_XWR),
       ("nop",       () => false.B),
       ("nop",       () => false.B))),
 
