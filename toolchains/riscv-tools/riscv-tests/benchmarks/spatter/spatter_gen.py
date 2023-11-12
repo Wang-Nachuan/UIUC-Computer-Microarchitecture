@@ -79,63 +79,137 @@ def print_array_int(name, array, file=None):
 
 kernel = 0 #TODO
 
-p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
-
-if p.lower() == 'u':
-    length = int(input("Enter the length of the pattern: "))
-    gap = int(input("Enter the size of each jump (gap): "))
-    pattern = uniform_pattern(length, gap)
-    print("UNIFORM pattern:",pattern)
-
-elif p.lower() == 's':
-    length = int(input("Enter the length of the pattern: "))
-    gap_locations = input("Enter the gap locations (comma separated): ")
-    gaps = input("Enter the size of the gaps (comma separated): ")
-    gap_locations = [int(x) for x in gap_locations.split(',')]
-    gaps = [int(x) for x in gaps.split(',')]
-    pattern = ms1_pattern(length, gap_locations, gaps)
-    print("Mostly Stride-1 pattern:", pattern)
-
-elif p.lower() == 'l':
-    dimension = int(input("Enter the dimension of the stencil(dimension): "))
-    pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
-    problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
-    pattern = laplacian_pattern(dimension, pseudo_order, problem_size)
-    print("LAPLACIAN pattern:", pattern)
-
-elif p.lower() == 'c':
-    pattern = input("Enter the pattern (comma separated): ")
-    pattern = [int(x) for x in pattern.split(',')]
-    print("Custom pattern:", pattern)
-
+k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
+if k.lower() == 'g':
+    kernel = 0
+elif k.lower() == 's':
+    kernel = 1
+elif k.lower() == 'gs':
+    kernel = 2
+elif k.lower() == 'mg':
+    kernel = 3
+elif k.lower() == 'ms':
+    kernel = 4
 else:
-    print("Invalid pattern type entered.")
-    pattern = None
+    print("Invalid kernel type entered.")
+    kernel = None
+if kernel == 0:
+    p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    if p.lower() == 'u':
+        length = int(input("Enter the length of the pattern: "))
+        gap = int(input("Enter the size of each jump (gap): "))
+        pattern = uniform_pattern(length, gap)
+        print("UNIFORM pattern:",pattern)
 
-delta = int(input("Enter the stride between each gather (delta): "))
-# Get the number of gathers, ensuring it's a power of 2 expression
-while True:
-    try:
-        n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
-        n = safe_eval(n_expr)
-        print(f"The evaluated number of gathers is: {n}")
-        break
-    except ValueError as ve:
-        print(ve)
-target_len = int(input("Enter the target length (target_len): "))
-save_to_file = input("Save to file 'dataset.h'? (y or n): ")
-max_val = max(pattern)
-source_size = delta * (n - 1) + max_val + 1
-source = [random.randint(0, 999) for _ in range(source_size)]
+    elif p.lower() == 's':
+        length = int(input("Enter the length of the pattern: "))
+        gap_locations = input("Enter the gap locations (comma separated): ")
+        gaps = input("Enter the size of the gaps (comma separated): ")
+        gap_locations = [int(x) for x in gap_locations.split(',')]
+        gaps = [int(x) for x in gaps.split(',')]
+        pattern = ms1_pattern(length, gap_locations, gaps)
+        print("Mostly Stride-1 pattern:", pattern)
+
+    elif p.lower() == 'l':
+        dimension = int(input("Enter the dimension of the stencil(dimension): "))
+        pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+        problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
+        pattern = laplacian_pattern(dimension, pseudo_order, problem_size)
+        print("LAPLACIAN pattern:", pattern)
+
+    elif p.lower() == 'c':
+        pattern = input("Enter the pattern (comma separated): ")
+        pattern = [int(x) for x in pattern.split(',')]
+        print("Custom pattern:", pattern)
+
+    else:
+        print("Invalid pattern type entered.")
+        pattern = None
+
+    delta = int(input("Enter the stride between each gather (delta): "))
+    # Get the number of gathers, ensuring it's a power of 2 expression
+    while True:
+        try:
+            n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            n = safe_eval(n_expr)
+            print(f"The evaluated number of gathers is: {n}")
+            break
+        except ValueError as ve:
+            print(ve)
+    target_len = int(input("Enter the target length (target_len): "))
+    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    max_val = max(pattern)
+    source_size = delta * (n - 1) + max_val + 1
+    source = [random.randint(0, 999) for _ in range(source_size)]
 
 
-if save_to_file.lower() == 'y':
-    with open("dataset.h", "w") as f:
-        f.write(f"const int kernel = {kernel}; // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter\n")
-        f.write(f"const int delta = {delta};\n")
-        f.write(f"const int n = {n};\n")
-        f.write(f"const int target_len = {target_len};\n")
-        f.write(f"const int pat_len = {len(pattern)};\n")
-        print_array_int("pat", pattern, file=f)
-        print_array_double("source", source, file=f)
+    if save_to_file.lower() == 'y':
+        with open("dataset.h", "w") as f:
+            f.write(f"#define KERNEL_{kernel}; // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter\n")
+            f.write(f"const int delta = {delta};\n")
+            f.write(f"const int n = {n};\n")
+            f.write(f"const int target_len = {target_len};\n")
+            f.write(f"const int pat_len = {len(pattern)};\n")
+            print_array_int("pat", pattern, file=f)
+            print_array_double("source", source, file=f)
+elif kernel == 1:
+    p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    if p.lower() == 'u':
+        length = int(input("Enter the length of the pattern: "))
+        gap = int(input("Enter the size of each jump (gap): "))
+        pattern = uniform_pattern(length, gap)
+        print("UNIFORM pattern:",pattern)
 
+    elif p.lower() == 's':
+        length = int(input("Enter the length of the pattern: "))
+        gap_locations = input("Enter the gap locations (comma separated): ")
+        gaps = input("Enter the size of the gaps (comma separated): ")
+        gap_locations = [int(x) for x in gap_locations.split(',')]
+        gaps = [int(x) for x in gaps.split(',')]
+        pattern = ms1_pattern(length, gap_locations, gaps)
+        print("Mostly Stride-1 pattern:", pattern)
+
+    elif p.lower() == 'l':
+        dimension = int(input("Enter the dimension of the stencil(dimension): "))
+        pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+        problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
+        pattern = laplacian_pattern(dimension, pseudo_order, problem_size)
+        print("LAPLACIAN pattern:", pattern)
+
+    elif p.lower() == 'c':
+        pattern = input("Enter the pattern (comma separated): ")
+        pattern = [int(x) for x in pattern.split(',')]
+        print("Custom pattern:", pattern)
+
+    else:
+        print("Invalid pattern type entered.")
+        pattern = None
+
+    delta = int(input("Enter the stride between each scatter (delta): "))
+    # Get the number of scatter, ensuring it's a power of 2 expression
+    while True:
+        try:
+            n_expr = input("Enter the number of scatter (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            n = safe_eval(n_expr)
+            print(f"The evaluated number of scatter is: {n}")
+            break
+        except ValueError as ve:
+            print(ve)
+    source_len = int(input("Enter the source length (source_len): "))
+    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    max_val = max(pattern)
+    target_size = delta * (n - 1) + max_val + 1
+    source_size = len(pattern) * source_len
+    source = [random.randint(0, 999) for _ in range(source_size)]
+
+
+    if save_to_file.lower() == 'y':
+        with open("dataset.h", "w") as f:
+            f.write(f"#define KERNEL_{kernel} // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter\n")
+            f.write(f"const int delta = {delta};\n")
+            f.write(f"const int n = {n};\n")
+            f.write(f"const int target_size = {target_size};\n")
+            f.write(f"const int source_len = {source_len};\n")
+            f.write(f"const int pat_len = {len(pattern)};\n")
+            print_array_int("pat", pattern, file=f)
+            print_array_double("source", source, file=f)
