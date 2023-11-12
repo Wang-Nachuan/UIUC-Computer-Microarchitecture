@@ -12,24 +12,34 @@ src_dir = .
 
 instname = riscv-bmarks
 instbasedir = $(UCB_VLSI_HOME)/install
-
+output_dir = ./output
 #--------------------------------------------------------------------
 # Sources
 #--------------------------------------------------------------------
 
 bmarks = \
-	median \
-	qsort \
-	rsort \
-	towers \
-	vvadd \
-	multiply \
-	mm \
-	dhrystone \
-	spmv \
-	mt-vvadd \
-	mt-matmul \
-	pmp \
+	spmm \
+	gather_u\
+	gather_l\
+	gather_s\
+	scatter_u\
+	scatter_l\
+	scatter_s\
+	gs_u\
+	gs_l\
+	gs_s\
+	# median \
+	# qsort \
+	# rsort \
+	# towers \
+	# vvadd \
+	# multiply \
+	# mm \
+	# dhrystone \
+	# spmv \
+	# mt-vvadd \
+	# mt-matmul \
+	# pmp \
 
 #--------------------------------------------------------------------
 # Build rules
@@ -60,6 +70,9 @@ bmarks_riscv_bin  = $(addsuffix .riscv,  $(bmarks))
 bmarks_riscv_dump = $(addsuffix .riscv.dump, $(bmarks))
 bmarks_riscv_out  = $(addsuffix .riscv.out,  $(bmarks))
 
+
+
+
 $(bmarks_riscv_dump): %.riscv.dump: %.riscv
 	$(RISCV_OBJDUMP) $< > $@
 
@@ -73,11 +86,20 @@ junk += $(bmarks_riscv_bin) $(bmarks_riscv_dump) $(bmarks_riscv_hex) $(bmarks_ri
 
 #------------------------------------------------------------
 # Default
+output_dir := benchmarks_out 
+all: riscv | $(output_dir) 
+	mv *.riscv $(output_dir) 
+	mv *.riscv.dump $(output_dir)
+$(output_dir): 
+	mkdir -p $(output_dir) 
 
-all: riscv
-
+# all: riscv | $(output_dir)
+#     mv *.riscv $(output_dir)
+#     mv *.riscv.dump $(output_dir)
 #------------------------------------------------------------
-# Install
+# Instaloutput_dir := outputl
+# $(output_dir):
+# 	mkdir -p $(output_dir)
 
 date_suffix = $(shell date +%Y-%m-%d_%H-%M)
 install_dir = $(instbasedir)/$(instname)-$(date_suffix)
@@ -94,5 +116,8 @@ install-link:
 #------------------------------------------------------------
 # Clean up
 
+# clean:
 clean:
 	rm -rf $(objs) $(junk)
+	rm -rf $(objs) $(junk) $(output_dir)/* 
+	rmdir $(output_dir) 
