@@ -213,3 +213,118 @@ elif kernel == 1:
             f.write(f"const int pat_len = {len(pattern)};\n")
             print_array_int("pat", pattern, file=f)
             print_array_double("source", source, file=f)
+
+elif kernel == 2:
+    p = input("Enter the gather pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    if p.lower() == 'u':
+        length_g = int(input("Enter the length of the pattern: "))
+        gap_g = int(input("Enter the size of each jump (gap): "))
+        pattern_g = uniform_pattern(length_g, gap_g)
+        print("UNIFORM gather pattern:",pattern_g)
+
+    elif p.lower() == 's':
+        length_g = int(input("Enter the length of the pattern: "))
+        gap_locations_g = input("Enter the gap locations (comma separated): ")
+        gaps_g = input("Enter the size of the gaps (comma separated): ")
+        gap_locations_g = [int(x) for x in gap_locations_g.split(',')]
+        gaps_g = [int(x) for x in gaps_g.split(',')]
+        pattern_g = ms1_pattern(length_g, gap_locations_g, gaps_g)
+        print("Mostly Stride-1 pattern:", pattern_g)
+
+    elif p.lower() == 'l':
+        dimension_g = int(input("Enter the dimension of the stencil(dimension): "))
+        pseudo_order_g = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+        problem_size_g = int(input("Enter the length of each dimension of the problem(problem size): "))
+        pattern_g = laplacian_pattern(dimension_g, pseudo_order_g, problem_size_g)
+        length_g = len(pattern_g)
+        print("LAPLACIAN pattern:", pattern_g)
+
+    elif p.lower() == 'c':
+        pattern_g = input("Enter the pattern (comma separated): ")
+        pattern_g = [int(x) for x in pattern_g.split(',')]
+        length_g = len(pattern_g)
+        print("Custom pattern:", pattern_g)
+
+    else:
+        print("Invalid pattern type entered.")
+        pattern = None
+    
+    p_s = input("Enter the scatter pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    if p_s.lower() == 'u':
+        length_s = int(input("Enter the length of the pattern: "))
+        while (length_g != length_s):
+            print("The length of gather pattern and scatter pattern must be the same!")
+            length_s = int(input("Enter the length of the pattern: "))
+        gap_s = int(input("Enter the size of each jump (gap): "))
+        pattern_s = uniform_pattern(length_s, gap_s)
+        print("UNIFORM scatter pattern:",pattern_s)
+    
+    elif p_s.lower() == 's':
+        length_s = int(input("Enter the length of the pattern: "))
+        while (length_g != length_s):
+            print("The length of gather pattern and scatter pattern must be the same!")
+            length_s = int(input("Enter the length of the pattern: "))
+        gap_locations_s = input("Enter the gap locations (comma separated): ")
+        gaps_s = input("Enter the size of the gaps (comma separated): ")
+        gap_locations_s = [int(x) for x in gap_locations_s.split(',')]
+        gaps_s = [int(x) for x in gaps_s.split(',')]
+        pattern_s = ms1_pattern(length_s, gap_locations_s, gaps_s)
+        print("Mostly Stride-1 scatter pattern:", pattern_s)
+    
+    elif p_s.lower() == 'l':
+        dimension_s = int(input("Enter the dimension of the stencil(dimension): "))
+        pseudo_order_s = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+        problem_size_s = int(input("Enter the length of each dimension of the problem(problem size): "))
+        pattern_s = laplacian_pattern(dimension_s, pseudo_order_s, problem_size_s)
+        length_s = len(pattern_s)
+        while (length_g != length_s):
+            print("The length of gather pattern and scatter pattern must be the same!")
+            dimension_s = int(input("Enter the dimension of the stencil(dimension): "))
+            pseudo_order_s = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+            problem_size_s = int(input("Enter the length of each dimension of the problem(problem size): "))
+            pattern_s = laplacian_pattern(dimension_s, pseudo_order_s, problem_size_s)
+            length_s = len(pattern_s)
+        print("LAPLACIAN scatter pattern:", pattern_s)
+    
+    elif p_s.lower() == 'c':
+        pattern_s = input("Enter the pattern (comma separated): ")
+        pattern_s = [int(x) for x in pattern_s.split(',')]
+        length_s = len(pattern_s)
+        while (length_g != length_s):
+            print("The length of gather pattern and scatter pattern must be the same!")
+            pattern_s = input("Enter the pattern (comma separated): ")
+            pattern_s = [int(x) for x in pattern_s.split(',')]
+            length_s = len(pattern_s)
+        print("Custom scatter pattern:", pattern_s)
+
+    delta_g = int(input("Enter the stride between each gather (delta): "))
+    delta_s = int(input("Enter the stride between each scatter (delta): "))
+    # Get the number of gathers, ensuring it's a power of 2 expression
+    # Get the number of scatter, ensuring it's a power of 2 expression
+    while True:
+        try:
+            n_expr = input("Enter the number of gather-scatter (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            n = safe_eval(n_expr)
+            print(f"The evaluated number of scatter is: {n}")
+            break
+        except ValueError as ve:
+            print(ve)
+    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    max_val_g = max(pattern_g)
+    max_val_s = max(pattern_s)
+    target_size = delta_s * (n - 1) + max_val_s + 1
+    source_size = delta_g * (n - 1) + max_val_g + 1
+    source = [random.randint(0, 999) for _ in range(source_size)]
+
+    if save_to_file.lower() == 'y':
+        with open("dataset.h", "w") as f:
+            f.write(f"#define KERNEL_{kernel} // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter\n")
+            f.write(f"const int delta_gather = {delta_g};\n")
+            f.write(f"const int delta_scatter = {delta_s};\n")
+            f.write(f"const int n = {n};\n")
+            f.write(f"const int target_size = {target_size};\n")
+            # f.write(f"const int source_len = {source_len};\n")
+            f.write(f"const int pat_len = {len(pattern_g)};\n")
+            print_array_int("gather_pat", pattern_g, file=f)
+            print_array_int("scatter_pat", pattern_s, file=f)
+            print_array_double("source", source, file=f)

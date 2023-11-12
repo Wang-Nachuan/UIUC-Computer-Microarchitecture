@@ -42,6 +42,27 @@ void scatter_smallbuf_serial(
     }
 }
 
+void sg_smallbuf_serial(
+        const double* restrict gather,
+        double* restrict scatter,
+        const int* restrict gather_pat, //gather index pattern array
+        const int* restrict scatter_pat, //scatter index pattern array
+        int pat_len,  // length of index pattern
+        int delta_gather, // stride between each gather
+        int delta_scatter, // stride between each scatter
+        int n) {// number of gathers
+
+    for (int i = 0; i < n; i++) {
+        double* tl = scatter + delta_scatter * i;
+        double* sl = gather + delta_gather * i; 
+
+        for (int j = 0; j < pat_len; j++) {
+            tl[scatter_pat[j]] = sl[gather_pat[j]];
+        }
+    }
+
+}
+
 int main(int argc, char* argv[]) {
     #ifdef KERNEL_0
         double target[target_len * pat_len]; 
@@ -70,6 +91,16 @@ int main(int argc, char* argv[]) {
         //     // Accessing element in row-major order
         //     printf("%f ", target[i]);
         // }
+    #endif
+    #ifdef KERNEL_2
+        double target[target_size];  
+        setStats(1);
+        sg_smallbuf_serial(source, target, gather_pat, scatter_pat, pat_len, delta_gather, delta_scatter, n);
+        // for (int i = 0; i < target_size; i++) {
+        //     // Accessing element in row-major order
+        //     printf("%f ", target[i]);
+        // }
+       setStats(0);
     #endif
     return 0; 
 }
