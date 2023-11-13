@@ -3,3 +3,4 @@
 !Makefile
 !verilator.mk
 !dramsim2_ini
+!run_our_benchmark.sh
