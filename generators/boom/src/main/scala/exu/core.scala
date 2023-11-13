@@ -50,7 +50,7 @@ import boom.util._
  * Top level core object that connects the Frontend to the rest of the pipeline.
  */
 class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
-  with HasBoomFrontendParameters // TODO: Don't add this trait
+  with HasBoomFrontendParameters with freechips.rocketchip.rocket.constants.MemoryOpConstants // TODO: Don't add this trait
 {
   val io = new freechips.rocketchip.tile.CoreBundle
   {
