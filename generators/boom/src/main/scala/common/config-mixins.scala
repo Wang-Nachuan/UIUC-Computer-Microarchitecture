@@ -199,6 +199,7 @@ class WithNLargeBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends 
               numStqEntries = 24,
               maxBrCount = 16,
               numFetchBufferEntries = 24,
+              nPerfCounters = 4,
               ftq = FtqParameters(nEntries=32),
               fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true))
             ),

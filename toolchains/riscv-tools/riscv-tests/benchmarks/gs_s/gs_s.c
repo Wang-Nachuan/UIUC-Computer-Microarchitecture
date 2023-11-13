@@ -84,9 +84,9 @@ int main(int argc, char* argv[]) {
         // for (int i = 0; i < target_size; i++) {
         //     target[i] = 0;
         // }
-        // setStats(1);
+        setStats(1);
         scatter_smallbuf_serial(target, source, pat, pat_len, delta, n, source_len);
-        // setStats(0);
+        setStats(0);
         // Print the resulting matrix
         // for (int i = 0; i < target_size; i++) {
         //     // Accessing element in row-major order
@@ -103,6 +103,9 @@ int main(int argc, char* argv[]) {
         // }
        setStats(0);
     #endif
+
+    printStats();
+    
     return 0; 
 }
 

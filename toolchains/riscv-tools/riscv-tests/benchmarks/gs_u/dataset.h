@@ -1,18 +1,18 @@
 #define KERNEL_2 // 0 for gather, 1 for scatter, 2 for gather-scatter, 3 for multigather, 4 for multiscatter
-const int delta_gather = 2;
-const int delta_scatter = 3;
-const int n = 2;
-const int target_size = 66;
-const int pat_len = 8;
-const int gather_pat[8] = {
-  0, 3, 6, 9, 12, 15, 18, 21,
+const int delta_gather = 4;
+const int delta_scatter = 8;
+const int n = 10;
+const int target_size = 103;
+const int pat_len = 16;
+const int gather_pat[16] = {
+  0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60,
 };
 
-const int scatter_pat[8] = {
-  0, 8, 16, 24, 32, 40, 48, 56,
+const int scatter_pat[16] = {
+  0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
 };
 
-const double source[28] = {
-  931, 921, 279, 129, 723, 299, 56, 41, 811, 265, 889, 530, 791, 330, 712, 420, 697, 615, 579, 283, 271, 466, 215, 452, 441, 285, 957, 347,
+const double source[97] = {
+  577, 132, 219, 371, 479, 149, 174, 875, 902, 858, 373, 907, 383, 207, 537, 233, 806, 140, 9, 578, 534, 340, 47, 489, 362, 788, 919, 999, 254, 480, 892, 347, 874, 964, 731, 751, 470, 941, 86, 516, 828, 251, 921, 494, 788, 73, 237, 156, 236, 347, 478, 36, 830, 998, 701, 981, 448, 714, 621, 811, 449, 706, 58, 800, 289, 778, 112, 31, 770, 847, 627, 826, 750, 796, 566, 562, 45, 762, 117, 708, 118, 799, 743, 104, 752, 871, 863, 53, 639, 570, 152, 48, 841, 711, 490, 259, 604,
 };
 

@@ -37,6 +37,8 @@ int main( int argc, char* argv[] )
   spmm(M, N, A_val, A_idx, A_ptr, B, C);
   setStats(0);
 
+  printStats();
+
    return verifyDouble(M * N, C,  &result[0][0]);
     // int verification_result = verifyDouble(M * N, C, &result[0][0]);
     // printf("Verification Result: %d\n", verification_result);
