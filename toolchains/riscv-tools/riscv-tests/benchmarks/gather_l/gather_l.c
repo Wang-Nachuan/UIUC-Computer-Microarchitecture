@@ -103,6 +103,9 @@ int main(int argc, char* argv[]) {
         // }
        setStats(0);
     #endif
+
+    printStats();
+
     return 0; 
 }
 
