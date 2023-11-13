@@ -78,18 +78,21 @@ abstract class LAPrefetcherIO(implicit edge: TLEdgeOut, p: Parameters) extends B
 {
   val io = IO(new Bundle {
     val lsu = Flipped(new PrefetchIO())
-    val prefetch = Decoupled(new BoomDCacheReq)
+    val prefetch = Valid(new BoomDCacheReq)
   })
 }
 
 class LAPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends LAPrefetcherIO
 {
   val req_valid = RegInit(false.B)
-  val req_addr  = Reg(UInt(coreMaxAddrBits.W))
+  val req_addr = RegInit(0.U(coreMaxAddrBits.W))
+  // val req_uop = RegInit(NullMicroOp())
+  // val req_is_load = RegInit(true.B)
   
   // 1 if physical address is ready but instruction not fired to memroy
   val addr_val = io.lsu.ldq.map(s => s.valid && s.bits.addr.valid && !s.bits.addr_is_virtual && !s.bits.executed) ++ io.lsu.stq.map(s => s.valid && s.bits.addr.valid && !s.bits.addr_is_virtual)
   val addr = io.lsu.ldq.map(s => s.bits.addr.bits) ++ io.lsu.stq.map(s => s.bits.addr.bits)
+  // val uop = io.lsu.ldq.map(s => s.bits.uop) ++ io.lsu.stq.map(s => s.bits.uop)
   val is_prefetched = io.lsu.ldq.map(s => s.bits.prefetch_fired) ++ io.lsu.stq.map(s => s.bits.prefetch_fired)
   val fire_prefetch = Wire(Vec(numLdqEntries + numStqEntries, Bool()))
   var break = false.B
@@ -105,7 +108,9 @@ class LAPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends LAPrefetcher
 
   when (break && !req_valid) {
     req_valid := true.B
-    req_addr  := addr(idx)
+    req_addr := addr(idx)
+    // req_uop := uop(idx)
+    // req_is_load := idx < numLdqEntries
     fire_prefetch(idx) := true.B
   } .elsewhen (io.prefetch.fire()) {
     req_valid := false.B
@@ -113,10 +118,11 @@ class LAPrefetcher(implicit edge: TLEdgeOut, p: Parameters) extends LAPrefetcher
 
   io.prefetch.valid            := req_valid
   io.prefetch.bits.addr        := req_addr
-  io.prefetch.bits.uop         := NullMicroOp   // ?
-  io.prefetch.bits.uop.mem_cmd := M_PFR   // M_XRD (load)? M_PFR (prefetch for read)?
+  io.prefetch.bits.uop         := NullMicroOp
+  // io.prefetch.bits.uop.ldq_idx := if (req_is_load) req_uop.ldq_idx else req_uop.stq_idx
+  io.prefetch.bits.uop.mem_cmd := M_XRD   // M_XRD (load)? M_PFR (prefetch for read)?
   io.prefetch.bits.data        := DontCare
-  io.prefetch.bits.is_hella    := true.B   // ?
+  io.prefetch.bits.is_hella    := false.B
 
   io.lsu.ldq_prefetch_fired := fire_prefetch.slice(0, numLdqEntries)
   io.lsu.stq_prefetch_fired := fire_prefetch.slice(numLdqEntries, numLdqEntries + numStqEntries)

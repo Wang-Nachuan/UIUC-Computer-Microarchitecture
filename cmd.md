@@ -25,21 +25,34 @@ Compile the design
 # From: sims/verilator/
 # Result: sims/verilator/
 
-make CONFIG=<design_config_name>
+make CONFIG=
 ```
 
-Run benchmarks
+Run default benchmarks
 
 ```bash
 # From: sims/verilator/
 # Result: sims/verilator/output/<*design_config_name>/
 
-make CONFIG=<design_config_name> run-bmark-tests
+make CONFIG= run-bmark-tests
 ```
 
-Shortcut
+Run all benchmarks
+
 ```bash
-make CONFIG= && make CONFIG= run-bmark-tests
+# From: sims/verilator/
+# Result: sims/verilator/output/<*design_config_name>/
+
+./run_benchmark.sh
+```
+
+Generate waveform
+
+```bash
+# From: sims/verilator/
+# Result: sims/verilator/output/<*design_config_name>/
+
+make debug CONFIG= run-bmark-tests
 ```
 
 Generate bitstream

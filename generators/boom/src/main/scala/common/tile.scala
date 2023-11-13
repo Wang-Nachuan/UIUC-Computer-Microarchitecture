@@ -157,7 +157,9 @@ class BoomTileModuleImp(outer: BoomTile) extends BaseTileModuleImp(outer){
   Annotated.params(this, outer.boomParams)
 
   val core = Module(new BoomCore(outer.boomParams.trace)(outer.p))
-  val lsu  = Module(new LSU()(outer.p, outer.dcache.module.edge))
+  // [Modified]
+  val lsu  = if (outer.boomParams.core.enablePrefetching) Module(new LSUWithPrefetcher()(outer.p, outer.dcache.module.edge))
+    else Module(new LSU()(outer.p, outer.dcache.module.edge))
 
   val ptwPorts         = ListBuffer(lsu.io.ptw, outer.frontend.module.io.ptw, core.io.ptw_tlb)
 

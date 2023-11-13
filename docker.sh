@@ -16,6 +16,6 @@ sudo docker run -it --rm \
     -v /mnt/d/nachuan3/bin/ece512:/workspace/ece512 \
     -v /mnt/d/nachuan3/bin/xilinx:/workspace/xilinx \
     -v /home/janux/.Xilinx:/root/.Xilinx \
-    -w /workspace/ece512 \
+    -w /workspace/ece512/sims/verilator \
     -e PATH="/workspace/xilinx/Vivado/2021.1/bin:${PATH}" \
     ece512:latest bash
