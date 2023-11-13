@@ -107,9 +107,6 @@ class LSUDMemIO(implicit p: Parameters, edge: TLEdgeOut) extends BoomBundle()(p)
   })
 
   override def cloneType = new LSUDMemIO().asInstanceOf[this.type]
-
-  // [New]
-  val prefetch = new PrefetchIO()
 }
 
 // [New] For prefetcher to inspect status inside LSU
@@ -229,19 +226,20 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
   val stq = Reg(Vec(numStqEntries, Valid(new STQEntry)))
 
   // [New]
-  io.dmem.prefetch.ldq := ldq
-  io.dmem.prefetch.stq := stq
+  val prefetcher = Module(new LAPrefetcher)
+  prefetcher.io.lsu.ldq := ldq
+  prefetcher.io.lsu.stq := stq
 
   // [New]
   for (i <- 0 until numLdqEntries) {
-    when (ldq(i).valid && io.dmem.prefetch.ldq_prefetch_fired(i)) {
+    when (ldq(i).valid && prefetcher.io.lsu.ldq_prefetch_fired(i)) {
       ldq(i).bits.prefetch_fired := true.B
     }
   }
 
   // [New]
   for (i <- 0 until numStqEntries) {
-    when (stq(i).valid && io.dmem.prefetch.stq_prefetch_fired(i)) {
+    when (stq(i).valid && prefetcher.io.lsu.stq_prefetch_fired(i)) {
       stq(i).bits.prefetch_fired := true.B 
     }
   }
@@ -789,6 +787,16 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
   val dmem_req = Wire(Vec(memWidth, Valid(new BoomDCacheReq)))
   io.dmem.req.valid := dmem_req.map(_.valid).reduce(_||_)
   io.dmem.req.bits  := dmem_req
+  // [New]
+  if (enablePrefetching) {
+    var is_prefetched = false.B
+    for (w <- 0 until memWidth) {
+      when (!dmem_req(w).valid && !is_prefetched) {
+        is_prefetched = true.B
+        io.dmem.req.bits(w) <> prefetcher.io.prefetch
+      }
+    }
+  }
   val dmem_req_fire = widthMap(w => dmem_req(w).valid && io.dmem.req.fire())
 
   val s0_executing_loads = WireInit(VecInit((0 until numLdqEntries).map(x=>false.B)))
