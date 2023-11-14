@@ -35,10 +35,11 @@ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t
 
 
 
-#define NUM_COUNTERS 6
+#define NUM_COUNTERS 9
 static uintptr_t counters[NUM_COUNTERS];
 // static char* counter_names[NUM_COUNTERS];
-static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", "load", "store"};
+static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", 
+                                "load", "store", "DTLB miss", "prefetcher fire", "prefetcher commit"};
 
 void setStats(int enable)
 {
@@ -48,12 +49,15 @@ void setStats(int enable)
     write_csr(mhpmevent4, 0x0402); // dcache writeback (eviction)
     write_csr(mhpmevent5, 0x0200); // load counter
     write_csr(mhpmevent6, 0x0400); // store counter
+    write_csr(mhpmevent7, 0x1002); // DTLB miss
+    write_csr(mhpmevent8, 0x0800); // prefetcher fire
+    write_csr(mhpmevent9, 0x1000); // prefetcher commit
   }
   
 #define READ_CTR(name) do { \
     while (i >= NUM_COUNTERS) ; \
     uintptr_t csr = read_csr(name); \
-    if (!enable) { csr -= counters[i]; } \
+    if (!enable) { csr -= counters[i]; counter_names[i] = #name; } \
     counters[i++] = csr; \
   } while (0)
 
@@ -63,6 +67,9 @@ void setStats(int enable)
   READ_CTR(mhpmcounter4);
   READ_CTR(mhpmcounter5);
   READ_CTR(mhpmcounter6);
+  READ_CTR(mhpmcounter7);
+  READ_CTR(mhpmcounter8);
+  READ_CTR(mhpmcounter9);
 
 #undef READ_CTR
 }
