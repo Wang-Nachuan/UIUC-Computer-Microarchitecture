@@ -28,18 +28,18 @@ bmarks = \
 	gs_u\
 	gs_l\
 	gs_s\
-	# median \
-	# qsort \
-	# rsort \
-	# towers \
-	# vvadd \
-	# multiply \
-	# mm \
-	# dhrystone \
-	# spmv \
-	# mt-vvadd \
-	# mt-matmul \
-	# pmp \
+	median \
+	qsort \
+	rsort \
+	towers \
+	vvadd \
+	multiply \
+	mm \
+	dhrystone \
+	spmv \
+	mt-vvadd \
+	mt-matmul \
+	pmp \
 
 #--------------------------------------------------------------------
 # Build rules

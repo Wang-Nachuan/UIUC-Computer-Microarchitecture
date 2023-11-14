@@ -57,19 +57,29 @@ void setStats(int enable)
 #define READ_CTR(name) do { \
     while (i >= NUM_COUNTERS) ; \
     uintptr_t csr = read_csr(name); \
-    if (!enable) { csr -= counters[i]; counter_names[i] = #name; } \
+    if (!enable) { csr -= counters[i]; } \
     counters[i++] = csr; \
   } while (0)
 
-  READ_CTR(mcycle);
+  // READ_CTR(mcycle);
+  // READ_CTR(minstret);
+  // READ_CTR(mhpmcounter3);
+  // READ_CTR(mhpmcounter4);
+  // READ_CTR(mhpmcounter5);
+  // READ_CTR(mhpmcounter6);
+  // READ_CTR(mhpmcounter7);
+  // READ_CTR(mhpmcounter8);
+  // READ_CTR(mhpmcounter9);
+
   READ_CTR(minstret);
-  READ_CTR(mhpmcounter3);
-  READ_CTR(mhpmcounter4);
-  READ_CTR(mhpmcounter5);
-  READ_CTR(mhpmcounter6);
-  READ_CTR(mhpmcounter7);
-  READ_CTR(mhpmcounter8);
-  READ_CTR(mhpmcounter9);
+  READ_CTR(mcycle);
+  READ_CTR(mhpmcounter5); // load counter
+  READ_CTR(mhpmcounter6); // store counter
+  READ_CTR(mhpmcounter3); // dcache misses
+  READ_CTR(mhpmcounter4); // dcache eviction
+  READ_CTR(mhpmcounter7); // TLB miss
+  READ_CTR(mhpmcounter8); // Prefetcher fire
+  READ_CTR(mhpmcounter9); // Prefetcher commit
 
 #undef READ_CTR
 }
