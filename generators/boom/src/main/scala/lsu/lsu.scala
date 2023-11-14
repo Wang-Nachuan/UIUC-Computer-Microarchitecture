@@ -156,6 +156,10 @@ class LSUCoreIO(implicit p: Parameters) extends BoomBundle()(p)
     val release = Bool()
     val tlbMiss = Bool()
   })
+
+  // [Add]
+  val perf_prefetch_commit = Bool()
+  val perf_prefetch_fire = Bool()
 }
 
 class LSUIO(implicit p: Parameters, edge: TLEdgeOut) extends BoomBundle()(p)
@@ -212,6 +216,9 @@ class LSU(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
 {
   val io = IO(new LSUIO)
 
+  // [Add]
+  io.core.perf_prefetch_commit := false.B
+  io.core.perf_prefetch_fire := false.B
 
   val ldq = Reg(Vec(numLdqEntries, Valid(new LDQEntry)))
   val stq = Reg(Vec(numStqEntries, Valid(new STQEntry)))

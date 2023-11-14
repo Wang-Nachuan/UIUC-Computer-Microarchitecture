@@ -55,15 +55,6 @@ import boom.common._
 import boom.exu.{BrUpdateInfo, Exception, FuncUnitResp, CommitSignals, ExeUnitResp}
 import boom.util.{BoolToChar, AgePriorityEncoder, IsKilledByBranch, GetNewBrMask, WrapInc, IsOlder, UpdateBrMask}
 
-// [New] For prefetcher to inspect status inside LSU
-class PrefetchIO(implicit p: Parameters) extends BoomBundle()(p)
-{
-  val ldq = Output(Vec(numLdqEntries, Valid(new LDQEntry)))
-  val stq = Output(Vec(numStqEntries, Valid(new STQEntry)))
-  val ldq_prefetch_fired = Input(Vec(numLdqEntries, Bool()))
-  val stq_prefetch_fired = Input(Vec(numStqEntries, Bool()))
-}
-
 class LSUWithPrefetcher(implicit p: Parameters, edge: TLEdgeOut) extends BoomModule()(p)
   with rocket.HasL1HellaCacheParameters
 {
@@ -73,10 +64,25 @@ class LSUWithPrefetcher(implicit p: Parameters, edge: TLEdgeOut) extends BoomMod
   val ldq = Reg(Vec(numLdqEntries, Valid(new LDQEntry)))
   val stq = Reg(Vec(numStqEntries, Valid(new STQEntry)))
 
+  val ldq_head         = Reg(UInt(ldqAddrSz.W))
+  val ldq_tail         = Reg(UInt(ldqAddrSz.W))
+  val stq_head         = Reg(UInt(stqAddrSz.W)) // point to next store to clear from STQ (i.e., send to memory)
+  val stq_tail         = Reg(UInt(stqAddrSz.W))
+  val stq_commit_head  = Reg(UInt(stqAddrSz.W)) // point to next store to commit
+  val stq_execute_head = Reg(UInt(stqAddrSz.W)) // point to next store to execute
+
   // [New]
   val prefetcher = Module(new LAPrefetcher)
   prefetcher.io.lsu.ldq := ldq
   prefetcher.io.lsu.stq := stq
+  prefetcher.io.lsu.ldq_head := ldq_head
+  prefetcher.io.lsu.ldq_tail := ldq_tail
+  prefetcher.io.lsu.stq_head := stq_head
+  prefetcher.io.lsu.stq_tail := stq_tail
+  prefetcher.io.lsu.stq_commit_head := stq_commit_head
+  prefetcher.io.lsu.stq_execute_head := stq_execute_head
+  io.core.perf_prefetch_commit := prefetcher.io.lsu.perf_prefetch_commit
+  io.core.perf_prefetch_fire := prefetcher.io.lsu.perf_prefetch_fire
 
   // [New]
   for (i <- 0 until numLdqEntries) {
@@ -91,14 +97,6 @@ class LSUWithPrefetcher(implicit p: Parameters, edge: TLEdgeOut) extends BoomMod
       stq(i).bits.prefetch_fired := true.B 
     }
   }
-
-  val ldq_head         = Reg(UInt(ldqAddrSz.W))
-  val ldq_tail         = Reg(UInt(ldqAddrSz.W))
-  val stq_head         = Reg(UInt(stqAddrSz.W)) // point to next store to clear from STQ (i.e., send to memory)
-  val stq_tail         = Reg(UInt(stqAddrSz.W))
-  val stq_commit_head  = Reg(UInt(stqAddrSz.W)) // point to next store to commit
-  val stq_execute_head = Reg(UInt(stqAddrSz.W)) // point to next store to execute
-
 
   // If we got a mispredict, the tail will be misaligned for 1 extra cycle
   assert (io.core.brupdate.b2.mispredict ||
