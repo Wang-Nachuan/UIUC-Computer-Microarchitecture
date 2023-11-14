@@ -51,7 +51,13 @@ void thread_entry(int cid, int nc)
    
    // First do out-of-place vvadd
    barrier(nc);
-   stats(vvadd(cid, nc, DATA_SIZE, input1_data, input2_data, results_data); barrier(nc), DATA_SIZE);
+
+   setStats(1);
+   vvadd(cid, nc, DATA_SIZE, input1_data, input2_data, results_data); 
+   barrier(nc);
+   setStats(0);
+
+   printStats();
  
    if(cid == 0) {
      int res = verifyDouble(DATA_SIZE, results_data, verify_data);

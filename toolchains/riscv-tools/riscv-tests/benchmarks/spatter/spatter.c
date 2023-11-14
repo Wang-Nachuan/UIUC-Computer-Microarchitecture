@@ -1,3 +1,4 @@
+#include "util.h"
 #include "dataset.h" 
 // #include <stdio.h>
 void gather_smallbuf_serial(
@@ -102,6 +103,9 @@ int main(int argc, char* argv[]) {
         // }
        setStats(0);
     #endif
+
+    printStats();
+
     return 0; 
 }
 

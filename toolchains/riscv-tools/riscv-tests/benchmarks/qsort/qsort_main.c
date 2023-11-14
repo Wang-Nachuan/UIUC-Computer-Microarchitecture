@@ -148,6 +148,8 @@ int main( int argc, char* argv[] )
   sort( DATA_SIZE, input_data );
   setStats(0);
 
+  printStats();
+
   // Check the results
   return verify( DATA_SIZE, input_data, verify_data );
 }

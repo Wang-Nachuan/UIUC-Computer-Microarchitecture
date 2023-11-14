@@ -40,6 +40,8 @@ int main( int argc, char* argv[] )
   }
   setStats(0);
 
+  printStats();
+
   // Check the results
   return verify( DATA_SIZE, results_data, verify_data );
 }

@@ -228,6 +228,8 @@ int main( int argc, char* argv[] )
   towers_solve( &towers );
   setStats(0);
 
+  printStats();
+
   // Check the results
   return towers_verify( &towers );
 }
