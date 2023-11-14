@@ -246,8 +246,8 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
       ("exception", () => rob.io.com_xcpt.valid),
       ("load",      () => rob.io.commit.valids(0) && rob.io.commit.uops(0).mem_cmd === M_XRD), // rob.io.commit.fp_val ?
       ("store",     () => rob.io.commit.valids(0) && rob.io.commit.uops(0).mem_cmd === M_XWR),
-      ("nop",       () => false.B),
-      ("nop",       () => false.B))),
+      ("prefetcher fire",   () => io.lsu.perf_prefetch_fire),
+      ("prefetcher commit", () => io.lsu.perf_prefetch_commit))),
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
 //      ("I$ blocked",                        () => icache_blocked),
