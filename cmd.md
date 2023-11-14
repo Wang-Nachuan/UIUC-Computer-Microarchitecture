@@ -37,15 +37,6 @@ Run default benchmarks
 make CONFIG= run-bmark-tests
 ```
 
-Run all benchmarks
-
-```bash
-# From: sims/verilator/
-# Result: sims/verilator/output/<*design_config_name>/
-
-./run_benchmark.sh
-```
-
 Generate waveform
 
 ```bash
@@ -53,6 +44,15 @@ Generate waveform
 # Result: sims/verilator/output/<*design_config_name>/
 
 make debug CONFIG= run-bmark-tests
+```
+
+Compile customized benckmark
+
+```bash
+# From: toolchains/riscv-tools/riscv-tests/benchmarks/
+# Result: toolchains/riscv-tools/riscv-tests/benchmarks/benckmarks_out
+
+make
 ```
 
 Generate bitstream
