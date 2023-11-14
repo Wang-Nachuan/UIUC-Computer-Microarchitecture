@@ -57,7 +57,7 @@ void setStats(int enable)
 #define READ_CTR(name) do { \
     while (i >= NUM_COUNTERS) ; \
     uintptr_t csr = read_csr(name); \
-    if (!enable) { csr -= counters[i]; counter_names[i] = #name; } \
+    if (!enable) { csr -= counters[i]; } \
     counters[i++] = csr; \
   } while (0)
 
