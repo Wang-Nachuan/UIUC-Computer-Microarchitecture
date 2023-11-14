@@ -50,6 +50,14 @@ class DromajoBoomConfig extends Config(
 // Self-defined Configs
 // ---------------------
 
+class MediumBoomsWeakConfig extends Config(
+  new boom.common.WithNMediumBoomsWeak(1) ++
+  new chipyard.config.AbstractConfig)
+
+class MediumBoomsWeakLAPrefetchConfig extends Config(
+  new boom.common.WithNMediumBoomsWeakLAPrefetch(1) ++
+  new chipyard.config.AbstractConfig)
+
 class MediumBoomsBaseConfig extends Config(
   new boom.common.WithNMediumBoomsBase(1) ++
   new chipyard.config.AbstractConfig)

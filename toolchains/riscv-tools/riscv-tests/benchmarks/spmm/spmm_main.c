@@ -39,9 +39,9 @@ int main( int argc, char* argv[] )
 
   printStats();
 
-   return verifyDouble(M * N, C,  &result[0][0]);
-    // int verification_result = verifyDouble(M * N, C, &result[0][0]);
-    // printf("Verification Result: %d\n", verification_result);
+  // return verifyDouble(M * N, C,  &result[0][0]);
+  // int verification_result = verifyDouble(M * N, C, &result[0][0]);
+  // printf("Verification Result: %d\n", verification_result);
 
-    // return 0;
+  return 0;
 }

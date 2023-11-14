@@ -38,8 +38,8 @@ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t
 #define NUM_COUNTERS 9
 static uintptr_t counters[NUM_COUNTERS];
 // static char* counter_names[NUM_COUNTERS];
-static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", 
-                                "load", "store", "DTLB miss", "prefetcher fire", "prefetcher commit"};
+// static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", "load", "store", "DTLB miss", "prefetcher fire", "prefetcher commit"};
+static char* counter_names[] = {"minstruction", "mcycle", "load", "store", "dcache miss", "dcache eviction", "TLB miss", "prefetcher fire", "prefetcher commit"};
 
 void setStats(int enable)
 {
