@@ -267,10 +267,8 @@ class BoomL1DataReadReq(implicit p: Parameters) extends BoomBundle()(p) {
 abstract class AbstractBoomDataArray(implicit p: Parameters) extends BoomModule with HasL1HellaCacheParameters {
   val io = IO(new BoomBundle {
     val read  = Input(Vec(memWidth, Valid(new L1DataReadReq)))
-    val ourRead = Input(Vec(memWidth, Valid(new L1DataReadReq)))
     val write = Input(Valid(new L1DataWriteReq))
     val resp  = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
-    val myResp  = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
     val nacks = Output(Vec(memWidth, Bool()))
   })
 
@@ -285,7 +283,6 @@ class BoomDuplicatedDataArray(implicit p: Parameters) extends AbstractBoomDataAr
   for (j <- 0 until memWidth) {
 
     val raddr = io.read(j).bits.addr >> rowOffBits
-    val raddr_2 = io.myRead(j).bits.addr >> rowOffBits
     for (w <- 0 until nWays) {
       val (array, omSRAM) = DescribedSRAM(
         name = s"array_${w}_${j}",
@@ -298,7 +295,6 @@ class BoomDuplicatedDataArray(implicit p: Parameters) extends AbstractBoomDataAr
         array.write(waddr, data, io.write.bits.wmask.asBools)
       }
       io.resp(j)(w) := RegNext(array.read(raddr, io.read(j).bits.way_en(w) && io.read(j).valid).asUInt)
-      io.myResp(j)(w) := RegNext(array.read(raddr_2, io.myRead(j).bits.way_en(w) && io.myRead(j).valid).asUInt)
     }
     io.nacks(j) := false.B
   }
@@ -417,8 +413,9 @@ class BoomDCacheBundle(implicit p: Parameters, edge: TLEdgeOut) extends BoomBund
 /** DOUGLAS:
   * This module encapsulate the metadata arrays and data arrays, as well as the prediction table
   */
-class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
+class myDCacheArrays (implicit p: Parameters) extends BoomBundle()(p)
     with HasL1HellaCacheParameters
+    with HasBoomCoreParameters
 {
     val io = new Bundle {
         val meta_read   = Flipped(Decoupled(new BoomL1MetaReadReq))
@@ -434,9 +431,6 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     def widthMap[T <: Data](f: Int => T) = VecInit((0 until memWidth).map(f))
     def wayMap[T <: Data](f: Int => T) = VecInit((0 until nWays).map(f))
     def onReset = L1Metadata(0.U, ClientMetadata.onReset)
-    // Instantiate a replacer here in case we don't have a hit
-    val replacer = cacheParams.replacement
-    val replaced_way_en = UIntToOH(replacer.way)
 
     val meta_spatial = Seq.fill(memWidth) { Module(new L1MetadataArray(onReset _)) }
     val meta_temporal = Seq.fill(memWidth) { Module(new L1MetadataArray(onReset _)) }
@@ -444,8 +438,8 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     val data_spatial = Module(new BoomDuplicatedDataArray)
     val data_temporal = Module(new BoomDuplicatedDataArray)
 
-    // Prediction table instantiation TODO: No connection yet.
-    // val predTable = Seq.fill(nSets) { Module(new LocalityTableEntry) }
+    // Prediction table instantiation TODO:
+    val predTable = Seq.fill(nSets) { Module(new LocalityTableEntry) }
 
     // meta read
     for (w <- 0 until memWidth) {
@@ -456,120 +450,43 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
     }
 
-
-    // meta write. 
-
-    // Should read meta at the same time through the second port to decide which cache we write to
-    for (i <- 0 until memWidth) {
-        meta_spatial(i).io.myRead.valid  := io.meta_write.valid
-        meta_spatial(i).io.myRead.bits   := io.meta_write.bits // casting L1MetaWriteReq to L1MetaReadReq
-
-        meta_temporal(i).io.myRead.valid  := io.meta_write.valid
-        meta_temporal(i).io.myRead.bits   := io.meta_write.bits // casting L1MetaWriteReq to L1MetaReadReq
-    }
-    // Read meta for meta write. Here we assume memWidth is 1, so I directly write index 0.
-    // Also, we assume meta write happens at the same time as data write. So these variables
-    // below are reused for data write
-    val spatial_tag_hit = wayMap((w: Int) => meta_spatial(0).io.myResp(w).tag === meta_spatial(0).io.write.bits.data.tag)
-    val temporal_tag_hit = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
-                                                            meta_temporal(0).io.myResp(w).wordIdx === meta_temporal(0).io.write.bits.data.wordIdx)
-    val temporal_tag_hit_only = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
-                                                            meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
-
-    for (i <- 0 until memWidth) {
-        when (spatial_tag_hit.orR) {
-          meta_spatial(i).io.write.valid := io.meta_write.fire()
-          meta_temporal(i).io.write.valid := false.B
-        } .otherwise {
-          // If spatia meta not hit or both meta not hit, write to temporal meta
-          meta_spatial(i).io.write.valid := false.B
-          meta_temporal(i).io.write.valid := io.meta_write.fire()
-        }
-        // Way choose logic. originally, way is chosen by mshr depending on the address that miss happened
-        // However, in this case we don't have the info that inside which cache the miss happened
-        // Later, I found that the replacement policy is set to random. In that case I put the replace
-        // inside this module.
-        meta_spatial(i).io.write.bits.idx       := io.meta_write.bits.idx
-        meta_spatial(i).io.write.bits.wordIdx   := io.meta_write.bits.wordIdx
-        meta_spatial(i).io.write.bits.way_en    := replaced_way_en
-
-        meta_temporal(i).io.write.bits.idx      := io.meta_write.bits.idx
-        meta_temporal(i).io.write.bits.idx      := io.meta_write.bits.wordIdx
-        meta_temporal(i).io.write.bits.way_en   := replaced_way_en
+    // meta write TODO: Need to decide which cache to write to
+    for (w <- 0 until memWidth) {
+        meta_temporal(w).io.write.valid := io.meta_write.fire()
+        meta_temporal(w).io.write.bits  := io.meta_write.bits
     }
 
-    
     // meta ready
     io.meta_read.ready  := meta_spatial.map(_.io.read.ready).reduce(_||_) && meta_temporal.map(_.io.read.ready).reduce(_||_)
     io.meta_write.ready := meta_spatial.map(_.io.write.ready).reduce(_||_) && meta_temporal.map(_.io.write.ready).reduce(_||_)
 
 
-    // data read. Always read from both caches
-    for (i <- 0 until memWidth) {
-        data_spatial.io.read(i).valid := io.data_read.bits.valid(i) && io.data_read.valid
-        data_spatial.io.read(i).bits  := io.data_read.bits.req(i)
+    // data read
+    for (w <- 0 until memWidth) {
+        data_spatial.io.read(w).valid := io.data_read.bits.valid(w) && io.data_read.valid
+        data_spatial.io.read(w).bits  := io.data_read.bits.req(w)
 
-        data_temporal.io.read(i).valid := io.data_read.bits.valid(i) && io.data_read.valid
-        data_temporal.io.read(i).bits  := io.data_read.bits.req(i)
+        data_temporal.io.read(w).valid := io.data_read.bits.valid(w) && io.data_read.valid
+        data_temporal.io.read(w).bits  := io.data_read.bits.req(w)
     }
     io.data_read.ready := true.B
 
-    // data write. NOTE: we assume meta write and data write are simultaneous according to Nachuan's diagram
-    when (spatial_tag_hit.orR) {
-        data_spatial.io.write.valid := io.data_write.fire()
-        data_temporal.io.write.valid := false.B
-    } .otherwise {
-        // If spatia meta not hit or both meta not hit, write to temporal data
-        data_spatial.io.write.valid := false.B
-        data_temporal.io.write.valid := io.data_write.fire()
-    }
-
-    // Connect the data write signals besides valid
-    data_temporal.io.write.bits.wmask := replaced_way_en
-    data_spatial.io.write.bits.wmask := replaced_way_en
-    data_temporal.io.write.bits.way_en := DontCare // DO NOT miss port connections!
-    data_spatial.io.write.bits.way_en := DontCare
-    data_temporal.io.write.bits.addr := io.data_write.bits.addr
-    data_spatial.io.write.bits.addr := io.data_write.bits.addr
-
-    // The data we write to temporal cache should consider if there is any other way with same tag but not
-    // the same word offset. Always read the temporal data through the second port
-    for (i <- 0 until memWidth) {
-        data_temporal.io.myRead(i).valid              := true.B
-        data_temporal.io.myRead(i).bits.valid         := true.B
-        data_temporal.io.myRead(i).bits.req(0).addr   := io.data_write.bits.addr
-        data_temporal.io.myRead(i).bits.req(0).way_en := temporal_tag_hit_only.asUInt
-    }
-    val tag_hit_only_data = data_temporal.io.myResp(0)(OHToUInt(temporal_tag_hit_only.asUInt))
-    val combined_data = tag_hit_only_data
-
-    // Use the newer data to replace the word at wordIdx
-    combined_data(encRowBits*(meta_temporal(0).io.myResp(w).wordIdx+1), encRowBits*meta_temporal(0).io.myResp(w).wordIdx) 
-        = io.data_write.bits.data(encRowBits*(meta_temporal(0).io.myResp(w).wordIdx+1), encRowBits*meta_temporal(0).io.myResp(w).wordIdx)
-
-    // If there exists any hits that only hit at tag (but not wordIdx)
-    when (temporal_tag_hit_only.orR) {
-        data_temporal.io.write.bits.data = combined_data
-    } .otherwise {
-        data_temporal.io.write.bits.data = io.data_write.bits.data
-    }
-
-    data_spatial.io.write.bits.data := io.data_write.bits.data
-
+    // data write TODO: Need to decide which cache to write to
+    data_temporal.io.write.valid := io.data_write.fire()
+    data_temporal.io.write.bits  := io.data_write.bits
     io.data_write.ready    := true.B
 
-
-    // hit check for read. For temporal cache we need also check the word index
-    val s0_addr = io.s0_req(0).addr // assume memWidth is 1
-    val spatial_hit = wayMap((w: Int) => meta_spatial(0).io.resp(w).tag === (s0_addr(0) >> untagBits)).orR
-    val temporal_hit = wayMap((w: Int) => meta_temporal(0).io.resp(w).tag === (s0_addr(0) >> untagBits) &&
-                                                        meta_temporal(0).io.resp(w).wordIdx === s0_addr(offsetmsb, offsetlsb)).orR // get word index
+    // hit check. For temporal cache we need also check the word index
+    val s0_addr = widthMap(i => s0_req(i).addr)
+    val spatial_hit = widthMap(i => wayMap((w: Int) => meta_spatial(i).io.resp(w).tag === (s0_addr(i) >> untagBits)).asUInt)
+    val temporal_hit = widthMap(i => wayMap((w: Int) => meta_temporal(i).io.resp(w).tag === (s0_addr(i) >> untagBits) &&
+                                                        meta_temporal(i).io.resp(w).wordIdx === s0_addr(i)(offsetmsb, offsetlsb))) // get word index
 
     // data response. If both hit or miss, output spatial cache by default
-    io.data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
+    data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
 
     // meta response
-    io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
+    meta_resp := Mux(temporal_hit && !spatial_hit, meta_temporal.io.resp, meta_spatial.io.resp)
 
 }
 
@@ -631,8 +548,8 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   /** DOUGLAS:
    *  Connect the metadata request
    */
-  ourCache.io.meta_write <> metaWriteArb.io.out
-  ourCache.io.meta_read <> metaReadArb.io.out
+  ourCache.meta_write <> metaWriteArb.io.out
+  ourCache.meta_read <> metaReadArb.io.out
 
   // data
 //   val data = Module(if (boomParams.numDCacheBanks == 1) new BoomDuplicatedDataArray else new BoomBankedDataArray)
@@ -656,8 +573,8 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   /** DOUGLAS:
    *  Connect the data request
    */
-  ourCache.io.data_read <> dataReadArb.io.out
-  ourCache.io.data_write <> dataWriteArb.io.out
+  ourCache.data_read <> dataReadArb.io.out
+  ourCache.data_write <> dataWriteArb.io.out
 
   // ------------
   // New requests
@@ -670,8 +587,6 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
     metaReadArb.io.in(4).bits.req(w).idx    := io.lsu.req.bits(w).bits.addr >> blockOffBits
     metaReadArb.io.in(4).bits.req(w).way_en := DontCare
     metaReadArb.io.in(4).bits.req(w).tag    := DontCare
-    // DOUGLAS: assign dontcares if wordIdx not used
-    metaReadArb.io.in(4).bits.req(w).wordIdx := DontCare
     // Data read for new requests
     dataReadArb.io.in(2).bits.valid(w)      := io.lsu.req.bits(w).valid
     dataReadArb.io.in(2).bits.req(w).addr   := io.lsu.req.bits(w).bits.addr
@@ -693,8 +608,6 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   metaReadArb.io.in(0).bits.req(0).idx    := mshrs.io.replay.bits.addr >> blockOffBits
   metaReadArb.io.in(0).bits.req(0).way_en := DontCare
   metaReadArb.io.in(0).bits.req(0).tag    := DontCare
-  // DOUGLAS: assign dontcares if wordIdx not used
-  metaReadArb.io.in(0).bits.req(0).wordIdx := DontCare
   // Data read for MSHR replays
   dataReadArb.io.in(0).valid              := mshrs.io.replay.valid
   dataReadArb.io.in(0).bits.req(0).addr   := mshrs.io.replay.bits.addr
@@ -762,8 +675,6 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   metaReadArb.io.in(5).bits.req(0).idx    := mshrs.io.prefetch.bits.addr >> blockOffBits
   metaReadArb.io.in(5).bits.req(0).way_en := DontCare
   metaReadArb.io.in(5).bits.req(0).tag    := DontCare
-  // DOUGLAS: assign dontcares if wordIdx not used
-  metaReadArb.io.in(5).bits.req(0).wordIdx := DontCare
   mshrs.io.prefetch.ready := metaReadArb.io.in(5).ready
   // Prefetch does not need to read data array
 
@@ -782,9 +693,6 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
                  Mux(prefetch_fire            , t_prefetch,
                  Mux(mshrs.io.meta_read.fire(), t_mshr_meta_read
                                               , t_replay)))))
-
-  // DOUGLAS: Connect the s0_req
-  ourCache.io.s0_req := s0_req
 
   // Does this request need to send a response or nack
   val s0_send_resp_or_nack = Mux(io.lsu.req.fire(), s0_valid,
@@ -814,7 +722,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
 
   // tag check
   def wayMap[T <: Data](f: Int => T) = VecInit((0 until nWays).map(f))
-  val s1_tag_eq_way = widthMap(i => wayMap((w: Int) => ourCache.io.meta_resp(i)(w).tag === (s1_addr(i) >> untagBits)).asUInt)
+  val s1_tag_eq_way = widthMap(i => wayMap((w: Int) => meta(i).io.resp(w).tag === (s1_addr(i) >> untagBits)).asUInt)
   val s1_tag_match_way = widthMap(i =>
                          Mux(s1_type === t_replay, s1_replay_way_en,
                          Mux(s1_type === t_wb,     s1_wb_way_en,
@@ -899,12 +807,8 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   val s2_data = Wire(Vec(memWidth, Vec(nWays, UInt(encRowBits.W))))
   for (i <- 0 until memWidth) {
     for (w <- 0 until nWays) {
-<<<<<<< HEAD
-      s2_data(i)(w) := data.io.resp(i)(w)
-=======
     //   s2_data(i)(w) := data.io.resp(i)(w) 
-      s2_data(i)(w) := ourCache.io.data_resp(i)(w) // DOUGLAS: Connect data response
->>>>>>> 2765b08c6 (Added a second port. Finished most logic)
+      s2_data(i)(w) := ourCache.data_resp(i)(w) // DOUGLAS: Connect data response
     }
   }
 
@@ -915,7 +819,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   val replacer = cacheParams.replacement
   val s1_replaced_way_en = UIntToOH(replacer.way)
   val s2_replaced_way_en = UIntToOH(RegNext(replacer.way))
-  val s2_repl_meta = widthMap(i => Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegNext(ourCache.io.meta_resp(i)(w))).toSeq)) // DOUGLAS: Connected metadata response
+  val s2_repl_meta = widthMap(i => Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegNext(ourCache.io.resp(i)(w))).toSeq)) // DOUGLAS: Connected metadata response
 
   // nack because of incoming probe
   val s2_nack_hit    = RegNext(VecInit(s1_nack))
@@ -971,7 +875,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   }
 
   mshrs.io.meta_resp.valid      := !s2_nack_hit(0) || prober.io.mshr_wb_rdy
-  mshrs.io.meta_resp.bits       := Mux1H(s2_tag_match_way(0), RegNext(ourCache.io.meta_resp(0)))
+  mshrs.io.meta_resp.bits       := Mux1H(s2_tag_match_way(0), RegNext(meta(0).io.resp))
   when (mshrs.io.req.map(_.fire()).reduce(_||_)) { replacer.miss }
   tl_out.a <> mshrs.io.mem_acquire
 
@@ -1104,6 +1008,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   s3_req.data := amoalu.io.out
   val s3_way   = RegNext(s2_tag_match_way(0))
 
+  // DOUGLAS: write back to cache (for pipeline write)
   dataWriteArb.io.in(0).valid       := s3_valid
   dataWriteArb.io.in(0).bits.addr   := s3_req.addr
   dataWriteArb.io.in(0).bits.wmask  := UIntToOH(s3_req.addr.extract(rowOffBits-1,offsetlsb))
