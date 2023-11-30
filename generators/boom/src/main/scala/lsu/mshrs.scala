@@ -109,6 +109,10 @@ class BoomMSHR(implicit edge: TLEdgeOut, p: Parameters) extends BoomModule()(p)
   val req     = Reg(new BoomDCacheReqInternal)
   val req_idx = req.addr(untagBits-1, blockOffBits)
   val req_tag = req.addr >> untagBits
+  /** DOUGLAS:
+    * Added one more variable here
+    */
+  val req_wordIdx = req.addr(offsetmsb, offsetlsb)
   val req_block_addr = (req.addr >> blockOffBits) << blockOffBits
   val req_needs_wb = RegInit(false.B)
 
@@ -295,11 +299,16 @@ class BoomMSHR(implicit edge: TLEdgeOut, p: Parameters) extends BoomModule()(p)
     state := Mux(!io.meta_resp.valid, s_meta_read, // Prober could have nack'd this read
              Mux(needs_wb, s_meta_clear, s_commit_line))
   } .elsewhen (state === s_meta_clear) {
+    // DOUGLAS: sending metadata write command here
     io.meta_write.valid         := true.B
     io.meta_write.bits.idx      := req_idx
     io.meta_write.bits.data.coh := coh_on_clear
     io.meta_write.bits.data.tag := req_tag
     io.meta_write.bits.way_en   := req.way_en
+    /** DOUGLAS:
+      * Return one more field of word index
+      */
+    io.meta_write.bits.data.wordIdx := req_wordIdx
 
     when (io.meta_write.fire()) {
       state      := s_wb_req

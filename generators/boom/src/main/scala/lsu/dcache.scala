@@ -704,7 +704,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   val s2_data = Wire(Vec(memWidth, Vec(nWays, UInt(encRowBits.W))))
   for (i <- 0 until memWidth) {
     for (w <- 0 until nWays) {
-      s2_data(i)(w) := data.io.resp(i)(w)
+      s2_data(i)(w) := data.io.resp(i)(w) 
     }
   }
 
@@ -902,6 +902,7 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   s3_req.data := amoalu.io.out
   val s3_way   = RegNext(s2_tag_match_way(0))
 
+  // DOUGLAS: write back to cache (for pipeline write)
   dataWriteArb.io.in(0).valid       := s3_valid
   dataWriteArb.io.in(0).bits.addr   := s3_req.addr
   dataWriteArb.io.in(0).bits.wmask  := UIntToOH(s3_req.addr.extract(rowOffBits-1,offsetlsb))
