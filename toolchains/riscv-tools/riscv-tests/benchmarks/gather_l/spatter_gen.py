@@ -1,3 +1,16 @@
+k = "g" # the kernel type, g for gather
+p = "l" # l for Laplacian
+save_to_file = "y" #Save to file 'dataset.h'
+
+
+dimension = 2 # the dimension of the stencil(dimension)
+pseudo_order = 2 # the length of a branch of the stencil(pseudo_order)
+n = 2**8 # the number of gathers 
+problem_size = 100 # the length of each dimension of the problem(problem size)
+delta = 4 # the stride between each gather (delta)
+target_len = 2# the target length (target_len)
+
+
 import random
 
 # uniform_pattern(length, gap)
@@ -79,7 +92,7 @@ def print_array_int(name, array, file=None):
 
 kernel = 0 #TODO
 
-k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
+# k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
 if k.lower() == 'g':
     kernel = 0
 elif k.lower() == 's':
@@ -94,7 +107,7 @@ else:
     print("Invalid kernel type entered.")
     kernel = None
 if kernel == 0:
-    p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    # p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
     if p.lower() == 'u':
         length = int(input("Enter the length of the pattern: "))
         gap = int(input("Enter the size of each jump (gap): "))
@@ -111,9 +124,9 @@ if kernel == 0:
         print("Mostly Stride-1 pattern:", pattern)
 
     elif p.lower() == 'l':
-        dimension = int(input("Enter the dimension of the stencil(dimension): "))
-        pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
-        problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
+        # dimension = int(input("Enter the dimension of the stencil(dimension): "))
+        # pseudo_order = int(input("Enter the length of a branch of the stencil(pseudo_order): "))
+        # problem_size = int(input("Enter the length of each dimension of the problem(problem size): "))
         pattern = laplacian_pattern(dimension, pseudo_order, problem_size)
         print("LAPLACIAN pattern:", pattern)
 
@@ -126,18 +139,18 @@ if kernel == 0:
         print("Invalid pattern type entered.")
         pattern = None
 
-    delta = int(input("Enter the stride between each gather (delta): "))
+    # delta = int(input("Enter the stride between each gather (delta): "))
     # Get the number of gathers, ensuring it's a power of 2 expression
     while True:
         try:
-            n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
-            n = safe_eval(n_expr)
+            # n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            # n = safe_eval(n_expr)
             print(f"The evaluated number of gathers is: {n}")
             break
         except ValueError as ve:
             print(ve)
-    target_len = int(input("Enter the target length (target_len): "))
-    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    # target_len = int(input("Enter the target length (target_len): "))
+    # save_to_file = input("Save to file 'dataset.h'? (y or n): ")
     max_val = max(pattern)
     source_size = delta * (n - 1) + max_val + 1
     source = [random.randint(0, 999) for _ in range(source_size)]
@@ -189,8 +202,8 @@ elif kernel == 1:
     # Get the number of scatter, ensuring it's a power of 2 expression
     while True:
         try:
-            n_expr = input("Enter the number of scatter (n) as a power of 2 (e.g., 2**2 or 2^3): ")
-            n = safe_eval(n_expr)
+            # n_expr = input("Enter the number of scatter (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            # n = safe_eval(n_expr)
             print(f"The evaluated number of scatter is: {n}")
             break
         except ValueError as ve:
