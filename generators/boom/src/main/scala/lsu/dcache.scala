@@ -456,8 +456,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
     }
 
-
-    // meta write. 
+    /***************
+    * Meta Write
+    * **************/
+    
 
     // Should read meta at the same time through the second port to decide which cache we write to
     for (i <- 0 until memWidth) {
@@ -899,12 +901,8 @@ class BoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyModu
   val s2_data = Wire(Vec(memWidth, Vec(nWays, UInt(encRowBits.W))))
   for (i <- 0 until memWidth) {
     for (w <- 0 until nWays) {
-<<<<<<< HEAD
-      s2_data(i)(w) := data.io.resp(i)(w)
-=======
     //   s2_data(i)(w) := data.io.resp(i)(w) 
       s2_data(i)(w) := ourCache.io.data_resp(i)(w) // DOUGLAS: Connect data response
->>>>>>> 2765b08c6 (Added a second port. Finished most logic)
     }
   }
 
