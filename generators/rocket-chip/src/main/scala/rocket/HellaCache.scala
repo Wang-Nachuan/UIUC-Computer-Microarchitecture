@@ -282,6 +282,10 @@ trait HasHellaCacheModule {
 class L1Metadata(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val coh = new ClientMetadata
   val tag = UInt(width = tagBits)
+  /** DOUGLAS:
+    * Added a field to store the block offset info for temporal cache
+    */
+  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 object L1Metadata {
@@ -289,6 +293,7 @@ object L1Metadata {
     val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
+    meta.wordIdx := 0.U
     meta
   }
 }
@@ -297,6 +302,7 @@ class L1MetaReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val idx    = UInt(width = idxBits)
   val way_en = UInt(width = nWays)
   val tag    = UInt(width = tagBits)
+  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 class L1MetaWriteReq(implicit p: Parameters) extends L1MetaReadReq()(p) {
@@ -307,8 +313,10 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
   val rstVal = onReset()
   val io = new Bundle {
     val read = Decoupled(new L1MetaReadReq).flip
+    val myRead = Decoupled(new L1MetaReadReq).flip
     val write = Decoupled(new L1MetaWriteReq).flip
     val resp = Vec(nWays, rstVal.cloneType).asOutput
+    val myResp = Vec(nWays, rstVal.cloneType).asOutput
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -325,6 +333,7 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
     tag_array.write(waddr, Vec.fill(nWays)(wdata), wmask)
   }
   io.resp := tag_array.read(io.read.bits.idx, io.read.fire()).map(rstVal.fromBits(_))
+  io.myResp := tag_array.read(io.myRead.bits.idx, io.myRead.fire()).map(rstVal.fromBits(_))
 
   io.read.ready := !wen // so really this could be a 6T RAM
   io.write.ready := !rst
