@@ -1,3 +1,14 @@
+k = "g" # the kernel type, g for gather
+p = "s" # s for Mostly Stride-1
+save_to_file = "y" #Save to file 'dataset.h'
+
+length = 8 # the length of the pattern:   
+gap_locations = "2,3" # input("Enter the gap locations (comma separated): ")
+gaps = "20,22"# the size of the gaps (comma separated):
+n = 2**8 # the number of gathers 
+delta = 4 # the stride between each gather (delta)
+target_len = 2 # the target length (target_len)
+
 import random
 
 # uniform_pattern(length, gap)
@@ -79,7 +90,7 @@ def print_array_int(name, array, file=None):
 
 kernel = 0 #TODO
 
-k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
+# k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
 if k.lower() == 'g':
     kernel = 0
 elif k.lower() == 's':
@@ -94,7 +105,7 @@ else:
     print("Invalid kernel type entered.")
     kernel = None
 if kernel == 0:
-    p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    # p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
     if p.lower() == 'u':
         length = int(input("Enter the length of the pattern: "))
         gap = int(input("Enter the size of each jump (gap): "))
@@ -102,9 +113,9 @@ if kernel == 0:
         print("UNIFORM pattern:",pattern)
 
     elif p.lower() == 's':
-        length = int(input("Enter the length of the pattern: "))
-        gap_locations = input("Enter the gap locations (comma separated): ")
-        gaps = input("Enter the size of the gaps (comma separated): ")
+        # length = int(input("Enter the length of the pattern: "))
+        # gap_locations = input("Enter the gap locations (comma separated): ")
+        # gaps = input("Enter the size of the gaps (comma separated): ")
         gap_locations = [int(x) for x in gap_locations.split(',')]
         gaps = [int(x) for x in gaps.split(',')]
         pattern = ms1_pattern(length, gap_locations, gaps)
@@ -126,18 +137,18 @@ if kernel == 0:
         print("Invalid pattern type entered.")
         pattern = None
 
-    delta = int(input("Enter the stride between each gather (delta): "))
+    # delta = int(input("Enter the stride between each gather (delta): "))
     # Get the number of gathers, ensuring it's a power of 2 expression
     while True:
         try:
-            n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
-            n = safe_eval(n_expr)
+            # n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            # n = safe_eval(n_expr)
             print(f"The evaluated number of gathers is: {n}")
             break
         except ValueError as ve:
             print(ve)
-    target_len = int(input("Enter the target length (target_len): "))
-    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    # target_len = int(input("Enter the target length (target_len): "))
+    # save_to_file = input("Save to file 'dataset.h'? (y or n): ")
     max_val = max(pattern)
     source_size = delta * (n - 1) + max_val + 1
     source = [random.randint(0, 999) for _ in range(source_size)]

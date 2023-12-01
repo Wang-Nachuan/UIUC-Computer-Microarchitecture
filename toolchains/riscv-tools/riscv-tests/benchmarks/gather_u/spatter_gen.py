@@ -1,3 +1,13 @@
+k = "g" # the kernel type, g for gather
+p = "u" # u for UNIFORM
+save_to_file = "y" #Save to file 'dataset.h'
+
+length = 8 # the length of the pattern:   
+gap = 4# the size of each jump (gap):
+n = 2**8 # the number of gathers 
+delta = 4 # the stride between each gather (delta)
+target_len = 2 # the target length (target_len)
+
 import random
 
 # uniform_pattern(length, gap)
@@ -79,7 +89,7 @@ def print_array_int(name, array, file=None):
 
 kernel = 0 #TODO
 
-k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
+# k = input("Enter the kernel type, g for gather, s for scatter, gs for gather-scatter, mg for multigather, ms for multiscatter: ")
 if k.lower() == 'g':
     kernel = 0
 elif k.lower() == 's':
@@ -94,10 +104,10 @@ else:
     print("Invalid kernel type entered.")
     kernel = None
 if kernel == 0:
-    p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
+    # p = input("Enter the pattern, u for UNIFORM, s for Mostly Stride-1, l for Laplacian, c for custom: ")
     if p.lower() == 'u':
-        length = int(input("Enter the length of the pattern: "))
-        gap = int(input("Enter the size of each jump (gap): "))
+        # length = int(input("Enter the length of the pattern: "))
+        # gap = int(input("Enter the size of each jump (gap): "))
         pattern = uniform_pattern(length, gap)
         print("UNIFORM pattern:",pattern)
 
@@ -126,18 +136,18 @@ if kernel == 0:
         print("Invalid pattern type entered.")
         pattern = None
 
-    delta = int(input("Enter the stride between each gather (delta): "))
+    # delta = int(input("Enter the stride between each gather (delta): "))
     # Get the number of gathers, ensuring it's a power of 2 expression
     while True:
         try:
-            n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
-            n = safe_eval(n_expr)
+            # n_expr = input("Enter the number of gathers (n) as a power of 2 (e.g., 2**2 or 2^3): ")
+            # n = safe_eval(n_expr)
             print(f"The evaluated number of gathers is: {n}")
             break
         except ValueError as ve:
             print(ve)
-    target_len = int(input("Enter the target length (target_len): "))
-    save_to_file = input("Save to file 'dataset.h'? (y or n): ")
+    # target_len = int(input("Enter the target length (target_len): "))
+    # save_to_file = input("Save to file 'dataset.h'? (y or n): ")
     max_val = max(pattern)
     source_size = delta * (n - 1) + max_val + 1
     source = [random.randint(0, 999) for _ in range(source_size)]
