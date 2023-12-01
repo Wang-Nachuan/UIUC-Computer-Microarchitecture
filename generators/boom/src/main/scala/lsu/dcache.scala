@@ -267,7 +267,7 @@ class BoomL1DataReadReq(implicit p: Parameters) extends BoomBundle()(p) {
 abstract class AbstractBoomDataArray(implicit p: Parameters) extends BoomModule with HasL1HellaCacheParameters {
   val io = IO(new BoomBundle {
     val read  = Input(Vec(memWidth, Valid(new L1DataReadReq)))
-    val ourRead = Input(Vec(memWidth, Valid(new L1DataReadReq)))
+    val myRead = Input(Vec(memWidth, Valid(new L1DataReadReq)))
     val write = Input(Valid(new L1DataWriteReq))
     val resp  = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
     val myResp  = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
@@ -447,7 +447,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     // Prediction table instantiation TODO: No connection yet.
     // val predTable = Seq.fill(nSets) { Module(new LocalityTableEntry) }
 
-    // meta read
+    /***************
+    * Meta Read
+    * **************/
+
     for (w <- 0 until memWidth) {
         meta_spatial(w).io.read.valid  := io.meta_read.valid
         meta_spatial(w).io.read.bits   := io.meta_read.bits.req(w)
@@ -456,10 +459,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
     }
 
+
     /***************
     * Meta Write
     * **************/
-    
 
     // Should read meta at the same time through the second port to decide which cache we write to
     for (i <- 0 until memWidth) {
@@ -491,13 +494,17 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         // However, in this case we don't have the info that inside which cache the miss happened
         // Later, I found that the replacement policy is set to random. In that case I put the replace
         // inside this module.
-        meta_spatial(i).io.write.bits.idx       := io.meta_write.bits.idx
-        meta_spatial(i).io.write.bits.wordIdx   := io.meta_write.bits.wordIdx
-        meta_spatial(i).io.write.bits.way_en    := replaced_way_en
+        meta_spatial(i).io.write.bits := io.meta_write.bits
+        meta_spatial(i).io.write.bits.way_en := replaced_way_en
+        meta_temporal(i).io.write.bits := io.meta_write.bits
+        meta_temporal(i).io.write.bits.way_en := replaced_way_en
+        // meta_spatial(i).io.write.bits.idx       := io.meta_write.bits.idx
+        // meta_spatial(i).io.write.bits.wordIdx   := io.meta_write.bits.wordIdx
+        // meta_spatial(i).io.write.bits.way_en    := replaced_way_en
 
-        meta_temporal(i).io.write.bits.idx      := io.meta_write.bits.idx
-        meta_temporal(i).io.write.bits.idx      := io.meta_write.bits.wordIdx
-        meta_temporal(i).io.write.bits.way_en   := replaced_way_en
+        // meta_temporal(i).io.write.bits.idx      := io.meta_write.bits.idx
+        // meta_temporal(i).io.write.bits.wordIdx  := io.meta_write.bits.wordIdx
+        // meta_temporal(i).io.write.bits.way_en   := replaced_way_en
     }
 
     
@@ -505,6 +512,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     io.meta_read.ready  := meta_spatial.map(_.io.read.ready).reduce(_||_) && meta_temporal.map(_.io.read.ready).reduce(_||_)
     io.meta_write.ready := meta_spatial.map(_.io.write.ready).reduce(_||_) && meta_temporal.map(_.io.write.ready).reduce(_||_)
 
+
+    /***************
+    * Data Read
+    * **************/
 
     // data read. Always read from both caches
     for (i <- 0 until memWidth) {
@@ -516,6 +527,11 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     }
     io.data_read.ready := true.B
 
+
+    /***************
+    * Data Write
+    * **************/
+    
     // data write. NOTE: we assume meta write and data write are simultaneous according to Nachuan's diagram
     when (spatial_tag_hit.orR) {
         data_spatial.io.write.valid := io.data_write.fire()
@@ -527,33 +543,44 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     }
 
     // Connect the data write signals besides valid
-    data_temporal.io.write.bits.wmask := replaced_way_en
-    data_spatial.io.write.bits.wmask := replaced_way_en
-    data_temporal.io.write.bits.way_en := DontCare // DO NOT miss port connections!
-    data_spatial.io.write.bits.way_en := DontCare
+    data_temporal.io.write.bits.wmask := io.data_write.bits.wmask
+    data_spatial.io.write.bits.wmask := io.data_write.bits.wmask
+    data_temporal.io.write.bits.way_en := replaced_way_en // DO NOT miss port connections!
+    data_spatial.io.write.bits.way_en := replaced_way_en
     data_temporal.io.write.bits.addr := io.data_write.bits.addr
     data_spatial.io.write.bits.addr := io.data_write.bits.addr
 
     // The data we write to temporal cache should consider if there is any other way with same tag but not
     // the same word offset. Always read the temporal data through the second port
     for (i <- 0 until memWidth) {
-        data_temporal.io.myRead(i).valid              := true.B
-        data_temporal.io.myRead(i).bits.valid         := true.B
-        data_temporal.io.myRead(i).bits.req(0).addr   := io.data_write.bits.addr
-        data_temporal.io.myRead(i).bits.req(0).way_en := temporal_tag_hit_only.asUInt
+        data_temporal.io.myRead(i).valid       := true.B
+        data_temporal.io.myRead(i).bits.addr   := io.data_write.bits.addr
+        data_temporal.io.myRead(i).bits.way_en := temporal_tag_hit_only.asUInt
+        
+        data_spatial.io.myRead(i).valid       := false.B
+        data_spatial.io.myRead(i).bits.addr   := DontCare
+        data_spatial.io.myRead(i).bits.way_en := DontCare
     }
-    val tag_hit_only_data = data_temporal.io.myResp(0)(OHToUInt(temporal_tag_hit_only.asUInt))
+    val tag_hit_only_data = data_temporal.io.myResp(0)(OHToUInt(temporal_tag_hit_only))
     val combined_data = tag_hit_only_data
 
     // Use the newer data to replace the word at wordIdx
-    combined_data(encRowBits*(meta_temporal(0).io.myResp(w).wordIdx+1), encRowBits*meta_temporal(0).io.myResp(w).wordIdx) 
-        = io.data_write.bits.data(encRowBits*(meta_temporal(0).io.myResp(w).wordIdx+1), encRowBits*meta_temporal(0).io.myResp(w).wordIdx)
+    val wordIdxStart = meta_temporal(0).io.myResp(OHToUInt(replaced_way_en)).wordIdx
+    val wordIdxEnd = wordIdxStart + 1.U 
+    // The slicing operations is shouting errors. I don't know why :(
+    // combined_data(
+    //     encDataBits * wordIdxEnd.litValue() - 1,
+    //     encDataBits * wordIdxStart.litValue()
+    // ) := io.data_write.bits.data(
+    //     encDataBits * wordIdxEnd.litValue() - 1,
+    //     encDataBits * wordIdxStart.litValue()
+    // )
 
     // If there exists any hits that only hit at tag (but not wordIdx)
     when (temporal_tag_hit_only.orR) {
-        data_temporal.io.write.bits.data = combined_data
+        data_temporal.io.write.bits.data := combined_data
     } .otherwise {
-        data_temporal.io.write.bits.data = io.data_write.bits.data
+        data_temporal.io.write.bits.data := io.data_write.bits.data
     }
 
     data_spatial.io.write.bits.data := io.data_write.bits.data
@@ -566,9 +593,18 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     val spatial_hit = wayMap((w: Int) => meta_spatial(0).io.resp(w).tag === (s0_addr(0) >> untagBits)).orR
     val temporal_hit = wayMap((w: Int) => meta_temporal(0).io.resp(w).tag === (s0_addr(0) >> untagBits) &&
                                                         meta_temporal(0).io.resp(w).wordIdx === s0_addr(offsetmsb, offsetlsb)).orR // get word index
+    
 
+    /***************
+    * Data Response
+    * **************/
+    
     // data response. If both hit or miss, output spatial cache by default
     io.data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
+
+    /***************
+    * Meta Response
+    * **************/
 
     // meta response
     io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))

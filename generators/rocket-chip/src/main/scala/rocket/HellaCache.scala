@@ -282,6 +282,10 @@ trait HasHellaCacheModule {
 class L1Metadata(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val coh = new ClientMetadata
   val tag = UInt(width = tagBits)
+  /** DOUGLAS:
+    * Added a field to store the block offset info for temporal cache
+    */
+  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 object L1Metadata {
@@ -289,6 +293,7 @@ object L1Metadata {
     val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
+    meta.wordIdx := 0.U
     meta
   }
 }
@@ -297,6 +302,7 @@ class L1MetaReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val idx    = UInt(width = idxBits)
   val way_en = UInt(width = nWays)
   val tag    = UInt(width = tagBits)
+  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 class L1MetaWriteReq(implicit p: Parameters) extends L1MetaReadReq()(p) {
