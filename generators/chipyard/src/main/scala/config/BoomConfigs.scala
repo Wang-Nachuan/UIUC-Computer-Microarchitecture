@@ -50,34 +50,10 @@ class DromajoBoomConfig extends Config(
 // Self-defined Configs
 // ---------------------
 
-class MediumBoomsWeakConfig extends Config(
-  new boom.common.WithNMediumBoomsWeak(1) ++
-  new chipyard.config.AbstractConfig)
-
-class MediumBoomsWeakLAPrefetchConfig extends Config(
-  new boom.common.WithNMediumBoomsWeakLAPrefetch(1) ++
-  new chipyard.config.AbstractConfig)
-
-class MediumBoomsBaseConfig extends Config(
+class MediumBoomBaseConfig extends Config(
   new boom.common.WithNMediumBoomsBase(1) ++
   new chipyard.config.AbstractConfig)
 
-class MediumBoomsLAPrefetchConfig extends Config(
-  new boom.common.WithNMediumBoomsLAPrefetch(1) ++
-  new chipyard.config.AbstractConfig)
-
-class MediumBoomsX2CacheBaseConfig extends Config(
-  new boom.common.WithNMediumBoomsX2CacheBase(1) ++
-  new chipyard.config.AbstractConfig)
-
-class MediumBoomsX2CacheLAPrefetchConfig extends Config(
-  new boom.common.WithNMediumBoomsX2CacheLAPrefetch(1) ++
-  new chipyard.config.AbstractConfig)
-
-class LargeBoomBaseConfig extends Config(
-  new boom.common.WithNLargeBoomsBase(1) ++
-  new chipyard.config.AbstractConfig)
-
-class LargeBoomLAPrefetchConfig extends Config(
-  new boom.common.WithNLargeBoomsLAPrefetch(1) ++
+class MediumBoomDualCacheConfig extends Config(
+  new boom.common.WithNMediumBoomsBase(1) ++
   new chipyard.config.AbstractConfig)

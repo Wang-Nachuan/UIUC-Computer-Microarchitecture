@@ -426,6 +426,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         val meta_resp   = Output(Vec(memWidth, Vec(nWays, new L1Metadata)))
         val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
         val s1_req      = Input(Vec(memWidth, new BoomDCacheReq))
+        val s3_req      = Input(new BoomDCacheReq)
         val is_lsu_req  = Input(Bool())
         // Signals for performance counter
         val perf_spatial_access   = Output(Bool())  // Spatial cache access
@@ -443,9 +444,11 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * **************/
 
     val local_table = Module(new LocalityTable)
-    local_table.io.valid := io.data_read.valid && io.is_lsu_req
-    local_table.io.inst_addr := io.s0_req.uop.debug_pc
-    local_table.io.data_addr := io.s0_req.addr
+    local_table.io.update_valid := io.data_read.valid && io.is_lsu_req
+    local_table.io.update_inst_addr := io.s0_req(0).uop.debug_pc
+    local_table.io.update_data_addr := io.s0_req(0).addr
+    local_table.io.read_valid := io.data_write.fire()
+    local_table.io.read_inst_addr := io.s3_req.uop.debug_pc
 
     /***************
     * Caches
@@ -493,13 +496,13 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
                                                             meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
 
     for (i <- 0 until memWidth) {
-      when (spatial_tag_hit.orR || local_table.io.pred === 1.U) {
+      when (spatial_tag_hit.orR || local_table.io.read_pred === 1.U) {
         meta_spatial(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_spatial(i).io.write.valid := false.B
       }
 
-      when (temporal_tag_hit.orR || local_table.io.pred === 0.U) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
+      when (temporal_tag_hit.orR || local_table.io.read_pred === 0.U) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
         meta_temporal(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_temporal(i).io.write.valid := false.B
@@ -532,7 +535,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * Data Write (Spatial Cache)
     * **************/
     
-    when (spatial_tag_hit.orR) {
+    when (spatial_tag_hit.orR || local_table.io.read_pred === 1.U) {
       data_spatial.io.write.valid := io.data_write.fire()
     } .otherwise {
       data_spatial.io.write.valid := false.B
@@ -546,7 +549,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * Data Write (Temporal Cache)
     * **************/
 
-    when (temporal_tag_hit.orR) {
+    when (temporal_tag_hit.orR || local_table.io.read_pred === 0.U) {
       data_temporal.io.write.valid := io.data_write.fire()
     } .otherwise {
       data_temporal.io.write.valid := false.B
@@ -619,7 +622,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     io.perf_temporal_store   := io.data_write.fire() && temporal_tag_hit.orR
     io.perf_temporal_miss    := (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
     io.perf_table_update     := io.data_read.valid && io.is_lsu_req
-    io.perf_table_evict      := false.B
+    io.perf_table_evict      := local_table.io.perf_table_evict
 }
 
 
@@ -725,7 +728,8 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
     dataReadArb.io.in(2).bits.req(w).way_en := ~0.U(nWays.W)
   }
 
-  ourCache.io.is_lsu_req := io.lsu.req.valid && io.lsu.req.ready
+  // ourCache.io.is_lsu_req := !mshrs.io.replay.valid && !wb.io.data_req.valid && io.lsu.req.valid
+  ourCache.io.is_lsu_req := io.lsu.req.ready
 
   // ------------
   // MSHR Replays
@@ -836,11 +840,8 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   val s0_send_resp_or_nack = Mux(io.lsu.req.fire(), s0_valid,
     VecInit(Mux(mshrs.io.replay.fire() && isRead(mshrs.io.replay.bits.uop.mem_cmd), 1.U(memWidth.W), 0.U(memWidth.W)).asBools))
 
-
-  val s1_req          = RegNext(s0_req)
-  // DOUGLAS: Connect the s1_req
   ourCache.io.s0_req := s0_req
-  ourCache.io.s1_req := s1_req
+  val s1_req          = RegNext(s0_req)
 
   for (w <- 0 until memWidth)
     s1_req(w).uop.br_mask := GetNewBrMask(io.lsu.brupdate, s0_req(w).uop)
@@ -873,6 +874,7 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
 
   val s1_wb_idx_matches = widthMap(i => (s1_addr(i)(untagBits-1,blockOffBits) === wb.io.idx.bits) && wb.io.idx.valid)
 
+  ourCache.io.s1_req := s1_req
   val s2_req   = RegNext(s1_req)
   val s2_type  = RegNext(s1_type)
   val s2_valid = widthMap(w =>
@@ -1122,6 +1124,8 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
                          !s2_sc_fail && !(s2_send_nack(w) && s2_nack(w))),
       "Store must go through 0th pipe in L1D")
   }
+
+  ourCache.io.s3_req := s3_req
 
   // For bypassing
   val s4_req   = RegNext(s3_req)

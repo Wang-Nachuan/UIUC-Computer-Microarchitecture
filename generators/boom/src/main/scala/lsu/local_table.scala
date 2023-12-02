@@ -66,7 +66,7 @@ class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
 
     state := state_next
 
-    when (state_next === st_steady) {
+    when (state === st_steady) {
         when (stride < MAX_SPATIAL_STRIDE) {
             io.pred := 1.U
         } .otherwise {
@@ -85,10 +85,16 @@ class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
 class LocalityTable(implicit p: Parameters) extends BoomModule()(p)
 {
     val io = IO(new Bundle {
-        val valid = Input(Bool())
-        val inst_addr = Input(UInt(coreMaxAddrBits.W))
-        val data_addr = Input(UInt(coreMaxAddrBits.W))
-        val pred = Output(UInt(1.W))
+        // Port for updating table entries
+        val update_valid = Input(Bool())
+        val update_inst_addr = Input(UInt(coreMaxAddrBits.W))
+        val update_data_addr = Input(UInt(coreMaxAddrBits.W))
+        // Port for reading prediction
+        val read_valid = Input(Bool())
+        val read_inst_addr = Input(UInt(coreMaxAddrBits.W))
+        val read_pred = Output(UInt(1.W))
+        // Signal for performance counter
+        val perf_table_evict = Output(Bool())
     })
 
     val table_size = 64
@@ -96,36 +102,47 @@ class LocalityTable(implicit p: Parameters) extends BoomModule()(p)
     val index_width = log2Ceil(table_size)
     val tag_width = coreMaxAddrBits - index_width - inst_offset
 
-    assert (io.inst_addr(inst_offset-1,0) === 0.U, "[locality table] PC must be four-byte aligned")
-    val index = WireInit(io.inst_addr(inst_offset+index_width-1, inst_offset))
-    val tag = WireInit(io.inst_addr(coreMaxAddrBits-1, inst_offset+index_width))
-
     // PC tag array
     val tag_array = RegInit(VecInit(Seq.fill(table_size)(0.U(tag_width.W))))
     val tag_array_valid = RegInit(VecInit(Seq.fill(table_size)(false.B)))
 
     // Locality entry array
-    def createLocalityTableEntry(): LocalityTableEntryIO = {
-        val module = Module(new LocalityTableEntry())
-        module.io
-    }
-    val entry_array = VecInit(Seq.fill(table_size)(createLocalityTableEntry()))
+    val entry_array = Array.fill(table_size)(Module(new LocalityTableEntry))
 
-    // Updating both array
-    io.pred := 0.U
+    // Update table
+    // assert (io.update_inst_addr(inst_offset-1,0) === 0.U, "[locality table 1] PC must be four-byte aligned")
+    val update_index = WireInit(io.update_inst_addr(inst_offset+index_width-1, inst_offset))
+    val update_tag = WireInit(io.update_inst_addr(coreMaxAddrBits-1, inst_offset+index_width))
+
+    io.perf_table_evict := false.B
     for (i <- 0 until table_size) {
         entry_array(i).io.init := false.B
         entry_array(i).io.update := false.B
-        entry_array(i).io.addr := io.data_addr
-        when (io.valid && index === i.U) {
-            when (tag_array_valid(i) && tag_array(i) === tag) { // If hit, update the entry
+        entry_array(i).io.addr := io.update_data_addr
+        when (io.update_valid && update_index === i.U) {
+            when (tag_array_valid(i) && tag_array(i) === update_tag) { // If hit, update the entry
                 entry_array(i).io.update := true.B
             } .otherwise {  // If miss, reset the entry and tag
                 entry_array(i).io.init := true.B
-                tag_array(i) := tag
+                tag_array(i) := update_tag
                 tag_array_valid(i) := true.B
+                io.perf_table_evict := true.B
             }
-            io.pred := entry_array(i).io.pred
         }
     }
+
+    // Read table
+    // assert (io.read_inst_addr(inst_offset-1,0) === 0.U, "[locality table 2] PC must be four-byte aligned")
+    val read_index = WireInit(io.read_inst_addr(inst_offset+index_width-1, inst_offset))
+    val read_tag = WireInit(io.read_inst_addr(coreMaxAddrBits-1, inst_offset+index_width))
+
+    io.read_pred := 0.U
+    for (i <- 0 until table_size) {
+        when (io.read_valid && read_index === i.U) {
+            when (tag_array_valid(i) && tag_array(i) === read_tag) {
+                io.read_pred := entry_array(i).io.pred
+            }
+        }
+    }
+
 }
