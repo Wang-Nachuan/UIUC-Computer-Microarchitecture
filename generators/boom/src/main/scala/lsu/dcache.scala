@@ -427,11 +427,13 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
         val s1_req      = Input(Vec(memWidth, new BoomDCacheReq)) 
         // Signals for performance counter
-        val perf_spatial_access   = Output(Bool())
-        val perf_spatial_miss     = Output(Bool())
-        val perf_temporal_access  = Output(Bool())
-        val perf_temporal_miss    = Output(Bool())
-        val perf_table_evict      = Output(Bool())
+        val perf_spatial_access   = Output(Bool())  // Spatial cache access
+        val perf_spatial_store    = Output(Bool())  // Spatial cache store
+        val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
+        val perf_temporal_access  = Output(Bool())  // Temporal cache access
+        val perf_temporal_store   = Output(Bool())  // Spatial cache store
+        val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
+        val perf_table_evict      = Output(Bool())  // Prediction table eviction
     }
 
     def widthMap[T <: Data](f: Int => T) = VecInit((0 until memWidth).map(f))
@@ -602,8 +604,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * Performance coutner
     * **************/
     io.perf_spatial_access   = data_spatial.io.read(0).valid
+    io.perf_spatial_store    = io.data_write.fire() && spatial_tag_hit.orR
     io.perf_spatial_miss     = (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
     io.perf_temporal_access  = data_temporal.io.read(0).valid
+    io.perf_temporal_store   = io.data_write.fire() && temporal_tag_hit.orR
     io.perf_temporal_miss    = (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
     io.perf_table_evict      = false.B
 }
