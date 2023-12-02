@@ -425,32 +425,41 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         val data_resp   = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
         val meta_resp   = Output(Vec(memWidth, Vec(nWays, new L1Metadata)))
         val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
-        val s1_req      = Input(Vec(memWidth, new BoomDCacheReq)) 
+        val s1_req      = Input(Vec(memWidth, new BoomDCacheReq))
+        val is_lsu_req  = Input(Bool())
         // Signals for performance counter
         val perf_spatial_access   = Output(Bool())  // Spatial cache access
         val perf_spatial_store    = Output(Bool())  // Spatial cache store
         val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
         val perf_temporal_access  = Output(Bool())  // Temporal cache access
-        val perf_temporal_store   = Output(Bool())  // Spatial cache store
+        val perf_temporal_store   = Output(Bool())  // Temporal cache store
         val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
+        val perf_table_update     = Output(Bool())  // Prediction table update
         val perf_table_evict      = Output(Bool())  // Prediction table eviction
     }
+
+    /***************
+    * Locality table
+    * **************/
+
+    val local_table = Module(new LocalityTable)
+    local_table.io.valid := io.data_read.valid && io.is_lsu_req
+    local_table.io.inst_addr := io.s0_req.uop.debug_pc
+    local_table.io.data_addr := io.s0_req.addr
+
+    /***************
+    * Caches
+    * **************/
 
     def widthMap[T <: Data](f: Int => T) = VecInit((0 until memWidth).map(f))
     def wayMap[T <: Data](f: Int => T) = VecInit((0 until nWays).map(f))
     def onReset = L1Metadata(0.U, ClientMetadata.onReset)
-    // Instantiate a replacer here in case we don't have a hit
-    // val replacer = cacheParams.replacement
-    // val replaced_way_en = UIntToOH(replacer.way)
 
     val meta_spatial = Seq.fill(memWidth) { Module(new L1MetadataArray(onReset _)) }
     val meta_temporal = Seq.fill(memWidth) { Module(new L1MetadataArray(onReset _)) }
 
     val data_spatial = Module(new BoomDuplicatedDataArray)
     val data_temporal = Module(new BoomDuplicatedDataArray)
-
-    // Prediction table instantiation TODO: No connection yet. Commented out. DO NOT leave any port unconnected.
-    // val predTable = Seq.fill(nSets) { Module(new LocalityTableEntry) }
 
     /***************
     * Meta Read
@@ -484,13 +493,13 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
                                                             meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
 
     for (i <- 0 until memWidth) {
-      when (spatial_tag_hit.orR || true.B) {
+      when (spatial_tag_hit.orR || local_table.io.pred === 1.U) {
         meta_spatial(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_spatial(i).io.write.valid := false.B
       }
 
-      when (temporal_tag_hit.orR) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
+      when (temporal_tag_hit.orR || local_table.io.pred === 0.U) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
         meta_temporal(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_temporal(i).io.write.valid := false.B
@@ -603,13 +612,14 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     /***************
     * Performance coutner
     * **************/
-    io.perf_spatial_access   = data_spatial.io.read(0).valid
-    io.perf_spatial_store    = io.data_write.fire() && spatial_tag_hit.orR
-    io.perf_spatial_miss     = (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
-    io.perf_temporal_access  = data_temporal.io.read(0).valid
-    io.perf_temporal_store   = io.data_write.fire() && temporal_tag_hit.orR
-    io.perf_temporal_miss    = (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
-    io.perf_table_evict      = false.B
+    io.perf_spatial_access   := data_spatial.io.read(0).valid
+    io.perf_spatial_store    := io.data_write.fire() && spatial_tag_hit.orR
+    io.perf_spatial_miss     := (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
+    io.perf_temporal_access  := data_temporal.io.read(0).valid
+    io.perf_temporal_store   := io.data_write.fire() && temporal_tag_hit.orR
+    io.perf_temporal_miss    := (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
+    io.perf_table_update     := io.data_read.valid && io.is_lsu_req
+    io.perf_table_evict      := false.B
 }
 
 
@@ -714,6 +724,8 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
     dataReadArb.io.in(2).bits.req(w).addr   := io.lsu.req.bits(w).bits.addr
     dataReadArb.io.in(2).bits.req(w).way_en := ~0.U(nWays.W)
   }
+
+  ourCache.io.is_lsu_req := io.lsu.req.valid && io.lsu.req.ready
 
   // ------------
   // MSHR Replays
