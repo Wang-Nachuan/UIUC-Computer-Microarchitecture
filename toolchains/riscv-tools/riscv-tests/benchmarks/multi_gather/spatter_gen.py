@@ -6,19 +6,20 @@ save_to_file = "y" #Save to file 'dataset.h'
 # p1 
 # UNIFORM Use
 p1_length_u = 16 # the length of the pattern:   
-p1_gap_u = 1 # the size of each jump (gap):
+p1_gap_u = 2 # the size of each jump (gap):
 
 # Mostly Stride-1 Use
-p1_length_s = 1 # the length of the pattern: 
+p1_length_s = 30 # the length of the pattern: 
 p1_gap_locations_s = "1" # the gap locations (comma separated): 
 p1_gaps_s = "2" # the size of the gaps (comma separated): ")
 
 # l for Laplacian 
 p1_dimension_l = 1 # the dimension of the stencil(dimension): "))
 p1_pseudo_order_l = 2 # the length of a branch of the stencil(pseudo_order): "))
-p1_problem_size_l = 3 # the length of each dimension of the problem(problem size): "))
+p1_problem_size_l = 10 # the length of each dimension of the problem(problem size): "))
 
-# p2 
+# p2
+# The max index of pattern_p1 should be less than the length of pattern_p2! 
 # UNIFORM Use
 p2_length_u = 30 # the length of the pattern:   
 p2_gap_u = 4 # the size of each jump (gap):
@@ -29,13 +30,13 @@ p2_gap_locations_s = "2" # the gap locations (comma separated):
 p2_gaps_s =  "3" # the size of the gaps (comma separated): ")
 
 # l for Laplacian 
-p2_dimension_l =  1 # the dimension of the stencil(dimension): "
-p2_pseudo_order_l = 1 # the length of a branch of the stencil(pseudo_order): "))
-p2_problem_size_l = 1 # the length of each dimension of the problem(problem size): "))
+p2_dimension_l =  2 # the dimension of the stencil(dimension): "
+p2_pseudo_order_l = 4 # the length of a branch of the stencil(pseudo_order): "))
+p2_problem_size_l = 50 # the length of each dimension of the problem(problem size): "))
 
-n = 2# the number of gathers 
+n = 2**8# the number of gathers 
 delta = 4 # the stride between each gather (delta)
-target_len = 2 # the target length (target_len)
+target_len = 4 # the target length (target_len)
 
 import random
 import sys
