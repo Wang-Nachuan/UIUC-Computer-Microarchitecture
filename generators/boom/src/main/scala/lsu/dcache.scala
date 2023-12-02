@@ -405,9 +405,26 @@ class BoomNonBlockingDCache(staticIdForMetadataUseOnly: Int)(implicit p: Paramet
 }
 
 
+
+/* DOUGLAS: Add a BoomBundle to pass the perf signals (to core) */
+class DCachePerfIO(implicit p: Parameters) extends BoomBundle()(p)
+{
+  // Signals for performance counter
+  val perf_spatial_access   = Output(Bool())  // Spatial cache access
+  val perf_spatial_store    = Output(Bool())  // Spatial cache store
+  val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
+  val perf_temporal_access  = Output(Bool())  // Temporal cache access
+  val perf_temporal_store   = Output(Bool())  // Temporal cache store
+  val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
+  val perf_table_evict      = Output(Bool())  // Prediction table eviction
+  val perf_table_update     = Output(Bool())
+}
+
+
 class BoomDCacheBundle(implicit p: Parameters, edge: TLEdgeOut) extends BoomBundle()(p) {
   val errors = new DCacheErrors
   val lsu   = Flipped(new LSUDMemIO)
+  val perf  = new DCachePerfIO
 }
 
 
@@ -428,15 +445,16 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         val s1_req      = Input(Vec(memWidth, new BoomDCacheReq))
         val s3_req      = Input(new BoomDCacheReq)
         val is_lsu_req  = Input(Bool())
+        val perf        = new DCachePerfIO
         // Signals for performance counter
-        val perf_spatial_access   = Output(Bool())  // Spatial cache access
-        val perf_spatial_store    = Output(Bool())  // Spatial cache store
-        val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
-        val perf_temporal_access  = Output(Bool())  // Temporal cache access
-        val perf_temporal_store   = Output(Bool())  // Temporal cache store
-        val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
-        val perf_table_update     = Output(Bool())  // Prediction table update
-        val perf_table_evict      = Output(Bool())  // Prediction table eviction
+        // val perf_spatial_access   = Output(Bool())  // Spatial cache access
+        // val perf_spatial_store    = Output(Bool())  // Spatial cache store
+        // val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
+        // val perf_temporal_access  = Output(Bool())  // Temporal cache access
+        // val perf_temporal_store   = Output(Bool())  // Spatial cache store
+        // val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
+        // val perf_table_evict      = Output(Bool())  // Prediction table eviction
+
     }
 
     /***************
@@ -615,14 +633,15 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     /***************
     * Performance coutner
     * **************/
-    io.perf_spatial_access   := data_spatial.io.read(0).valid
-    io.perf_spatial_store    := io.data_write.fire() && spatial_tag_hit.orR
-    io.perf_spatial_miss     := (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
-    io.perf_temporal_access  := data_temporal.io.read(0).valid
-    io.perf_temporal_store   := io.data_write.fire() && temporal_tag_hit.orR
-    io.perf_temporal_miss    := (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
-    io.perf_table_update     := io.data_read.valid && io.is_lsu_req
-    io.perf_table_evict      := local_table.io.perf_table_evict
+    
+    io.perf.perf_spatial_access   := data_spatial.io.read(0).valid
+    io.perf.perf_spatial_store    := io.data_write.fire() && spatial_tag_hit.orR
+    io.perf.perf_spatial_miss     := (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
+    io.perf.perf_temporal_access  := data_temporal.io.read(0).valid
+    io.perf.perf_temporal_store   := io.data_write.fire() && temporal_tag_hit.orR
+    io.perf.perf_temporal_miss    := (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
+    io.perf.perf_table_evict      := false.B
+    io.perf.perf_table_update     := io.data_read.valid && io.is_lsu_req
 }
 
 
@@ -667,6 +686,8 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
    *  Instantiate our dcache arrays
    */
   val ourCache = Module(new myDCacheArrays)
+  // Connect the dcache perf signals
+  io.perf <> ourCache.io.perf
 
   metaReadArb.io.in := DontCare
   // for (w <- 0 until memWidth) {
