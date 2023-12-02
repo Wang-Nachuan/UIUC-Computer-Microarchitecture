@@ -426,6 +426,12 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         val meta_resp   = Output(Vec(memWidth, Vec(nWays, new L1Metadata)))
         val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
         val s1_req      = Input(Vec(memWidth, new BoomDCacheReq)) 
+        // Signals for performance counter
+        val perf_spatial_access   = Output(Bool())
+        val perf_spatial_miss     = Output(Bool())
+        val perf_temporal_access  = Output(Bool())
+        val perf_temporal_miss    = Output(Bool())
+        val perf_table_evict      = Output(Bool())
     }
 
     def widthMap[T <: Data](f: Int => T) = VecInit((0 until memWidth).map(f))
@@ -592,6 +598,14 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
 
     io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
 
+    /***************
+    * Performance coutner
+    * **************/
+    io.perf_spatial_access   = data_spatial.io.read(0).valid
+    io.perf_spatial_miss     = (!spatial_hit) && RegNext(data_spatial.io.read(0).valid)
+    io.perf_temporal_access  = data_temporal.io.read(0).valid
+    io.perf_temporal_miss    = (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
+    io.perf_table_evict      = false.B
 }
 
 
