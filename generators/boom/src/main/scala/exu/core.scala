@@ -63,6 +63,8 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
     val ptw_tlb = new freechips.rocketchip.rocket.TLBPTWIO()
     val trace = Output(Vec(coreParams.retireWidth, new ExtendedTracedInstruction))
     val fcsr_rm = UInt(freechips.rocketchip.tile.FPConstants.RM_SZ.W)
+    /* Connect the perf signals from DCache */
+    val dcache_perf = Flipped(new boom.lsu.DCachePerfIO)
   }
   //**********************************
   // construct all of the modules
@@ -251,12 +253,20 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
 //      ("I$ blocked",                        () => icache_blocked),
-      ("nop",                               () => false.B),
+      // ("nop",                               () => false.B),
       // ("branch misprediction",              () => br_unit.brinfo.mispredict),
       // ("control-flow target misprediction", () => br_unit.brinfo.mispredict &&
       //                                             br_unit.brinfo.cfi_type === CFI_JALR),
-      ("flush",                             () => rob.io.flush.valid)
+      // ("flush",                             () => rob.io.flush.valid)
       //("branch resolved",                   () => br_unit.brinfo.valid)
+      /* Perf counter for myDCacheArrays */
+      ("Spatial cache access",      () => io.dcache_perf.perf_spatial_access),
+      ("Spatial cache store",       () => io.dcache_perf.perf_spatial_store),
+      ("Spatial cache miss",        () => io.dcache_perf.perf_spatial_miss),
+      ("Temporal cache access",     () => io.dcache_perf.perf_temporal_access),
+      ("Temporal cache store",      () => io.dcache_perf.perf_temporal_store),
+      ("Temporal cache miss",       () => io.dcache_perf.perf_temporal_miss),
+      ("Prediction table eviction", () => io.dcache_perf.perf_table_evict),
     )),
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
