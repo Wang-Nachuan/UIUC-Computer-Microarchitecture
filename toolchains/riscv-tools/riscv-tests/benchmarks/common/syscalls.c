@@ -35,7 +35,7 @@ static uintptr_t syscall(uintptr_t which, uint64_t arg0, uint64_t arg1, uint64_t
 
 
 
-#define NUM_COUNTERS 16
+#define NUM_COUNTERS 14
 #if NUM_COUNTERS > 32
   #error "Number of counters exceeds 32!"
 #endif
@@ -44,10 +44,9 @@ static uintptr_t counters[NUM_COUNTERS];
 // static char* counter_names[NUM_COUNTERS];
 // static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", "load", "store", "DTLB miss", "prefetcher fire", "prefetcher commit"};
 static char* counter_names[] = {"minstruction", "mcycle", "load", "store", "dcache miss", "dcache eviction", 
-                                "TLB miss", "prefetcher fire", "prefetcher commit",
                                 "Spatial cache access", "Spatial cache store", "Spatial cache miss",
                                 "Temporal cache access", "Spatial cache store", "Temporal cache miss",
-                                "Prediction table eviction"};
+                                "Prediction table eviction", "Prediction table update"};
 
 void setStats(int enable)
 {
@@ -57,9 +56,9 @@ void setStats(int enable)
     write_csr(mhpmevent4, 0x0402); // dcache writeback (eviction)
     write_csr(mhpmevent5, 0x0200); // load counter
     write_csr(mhpmevent6, 0x0400); // store counter
-    write_csr(mhpmevent7, 0x1002); // DTLB miss
-    write_csr(mhpmevent8, 0x0800); // prefetcher fire
-    write_csr(mhpmevent9, 0x1000); // prefetcher commit
+    // write_csr(mhpmevent7, 0x1002); // DTLB miss
+    // write_csr(mhpmevent8, 0x0800); // prefetcher fire
+    // write_csr(mhpmevent9, 0x1000); // prefetcher commit
 
     write_csr(mhpmevent10, 0x0101); // Spatial cache access
     write_csr(mhpmevent11, 0x0201); // Spatial cache store
@@ -68,6 +67,7 @@ void setStats(int enable)
     write_csr(mhpmevent14, 0x1001); // Temporal cache store
     write_csr(mhpmevent15, 0x2001); // Temporal cache miss
     write_csr(mhpmevent16, 0x4001); // Prediction table eviction
+    write_csr(mhpmevent17, 0x8001); // Prediction table update
   }
   
 #define READ_CTR(name) do { \
@@ -93,9 +93,9 @@ void setStats(int enable)
   READ_CTR(mhpmcounter6); // store counter
   READ_CTR(mhpmcounter3); // dcache misses
   READ_CTR(mhpmcounter4); // dcache eviction
-  READ_CTR(mhpmcounter7); // TLB miss
-  READ_CTR(mhpmcounter8); // Prefetcher fire
-  READ_CTR(mhpmcounter9); // Prefetcher commit
+  // READ_CTR(mhpmcounter7); // TLB miss
+  // READ_CTR(mhpmcounter8); // Prefetcher fire
+  // READ_CTR(mhpmcounter9); // Prefetcher commit
 
   READ_CTR(mhpmcounter10); // Spatial cache access
   READ_CTR(mhpmcounter11); // Spatial cache store
@@ -104,6 +104,7 @@ void setStats(int enable)
   READ_CTR(mhpmcounter14); // Temporal cache store
   READ_CTR(mhpmcounter15); // Temporal cache miss
   READ_CTR(mhpmcounter16); // Prediction table eviction
+  READ_CTR(mhpmcounter17); // Prediction table update
 
 #undef READ_CTR
 }

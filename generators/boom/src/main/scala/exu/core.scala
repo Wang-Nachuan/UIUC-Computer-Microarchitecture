@@ -267,6 +267,7 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
       ("Temporal cache store",      () => io.dcache_perf.perf_temporal_store),
       ("Temporal cache miss",       () => io.dcache_perf.perf_temporal_miss),
       ("Prediction table eviction", () => io.dcache_perf.perf_table_evict),
+      ("Prediction table update",   () => io.dcache_perf.perf_table_update),
     )),
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(

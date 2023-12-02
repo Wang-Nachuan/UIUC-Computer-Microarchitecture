@@ -417,6 +417,7 @@ class DCachePerfIO(implicit p: Parameters) extends BoomBundle()(p)
   val perf_temporal_store   = Output(Bool())  // Temporal cache store
   val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
   val perf_table_evict      = Output(Bool())  // Prediction table eviction
+  val perf_table_update     = Output(Bool())
 }
 
 
