@@ -25,6 +25,7 @@ bmarks = \
 	scatter_u\
 	scatter_l\
 	scatter_s\
+	multi_gather\
 	gs_u\
 	gs_l\
 	gs_s\
@@ -118,6 +119,5 @@ install-link:
 
 # clean:
 clean:
-	rm -rf $(objs) $(junk)
-	rm -rf $(objs) $(junk) $(output_dir)/* 
-	rmdir $(output_dir) 
+	rm -rf benchmarks_out/* 
+
