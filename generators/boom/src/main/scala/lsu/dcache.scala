@@ -433,28 +433,20 @@ class BoomDCacheBundle(implicit p: Parameters, edge: TLEdgeOut) extends BoomBund
   */
 class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     with HasL1HellaCacheParameters
+    with HasBoomCoreParameters
 {
     val io = new Bundle {
-        val meta_read   = Flipped(Decoupled(new BoomL1MetaReadReq))
-        val meta_write  = Flipped(Decoupled(new L1MetaWriteReq))
-        val data_read   = Flipped(Decoupled(new BoomL1DataReadReq))
-        val data_write  = Flipped(Decoupled(new L1DataWriteReq))
-        val data_resp   = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
-        val meta_resp   = Output(Vec(memWidth, Vec(nWays, new L1Metadata)))
-        val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
-        val s1_req      = Input(Vec(memWidth, new BoomDCacheReq))
-        val s3_req      = Input(new BoomDCacheReq)
-        val is_lsu_req  = Input(Bool())
-        val perf        = new DCachePerfIO
-        // Signals for performance counter
-        // val perf_spatial_access   = Output(Bool())  // Spatial cache access
-        // val perf_spatial_store    = Output(Bool())  // Spatial cache store
-        // val perf_spatial_miss     = Output(Bool())  // Spatial cache miss
-        // val perf_temporal_access  = Output(Bool())  // Temporal cache access
-        // val perf_temporal_store   = Output(Bool())  // Spatial cache store
-        // val perf_temporal_miss    = Output(Bool())  // Temporal cache miss
-        // val perf_table_evict      = Output(Bool())  // Prediction table eviction
-
+      val meta_read   = Flipped(Decoupled(new BoomL1MetaReadReq))
+      val meta_write  = Flipped(Decoupled(new L1MetaWriteReq))
+      val data_read   = Flipped(Decoupled(new BoomL1DataReadReq))
+      val data_write  = Flipped(Decoupled(new L1DataWriteReq))
+      val data_resp   = Output(Vec(memWidth, Vec(nWays, Bits(encRowBits.W))))
+      val meta_resp   = Output(Vec(memWidth, Vec(nWays, new L1Metadata)))
+      val s0_req      = Input(Vec(memWidth, new BoomDCacheReq))
+      val s1_req      = Input(Vec(memWidth, new BoomDCacheReq))
+      val s3_req      = Input(new BoomDCacheReq)
+      val is_lsu_req  = Input(Bool())
+      val perf        = new DCachePerfIO
     }
 
     /***************
@@ -494,7 +486,6 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
     }
 
-
     /***************
     * Meta Write
     * **************/
@@ -507,20 +498,20 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
         meta_temporal(i).io.myRead.bits   := io.meta_write.bits // casting L1MetaWriteReq to L1MetaReadReq
     }
 
-    val spatial_tag_hit = wayMap((w: Int) => meta_spatial(0).io.myResp(w).tag === meta_spatial(0).io.write.bits.data.tag)
-    val temporal_tag_hit = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
-                                                            meta_temporal(0).io.myResp(w).wordIdx === meta_temporal(0).io.write.bits.data.wordIdx)
-    val temporal_tag_hit_only = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
-                                                            meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
+    val spatial_tag_hit = wayMap((w: Int) => meta_spatial(0).io.myResp(w).tag === io.meta_write.bits.data.tag)
+    val temporal_tag_hit = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === io.meta_write.bits.data.tag)
+    // && meta_temporal(0).io.myResp(w).wordIdx === meta_temporal(0).io.write.bits.data.wordIdx)
+    // val temporal_tag_hit_only = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
+    //   meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
 
     for (i <- 0 until memWidth) {
-      when (spatial_tag_hit.orR || local_table.io.read_pred === 1.U) {
+      when ((spatial_tag_hit.orR || local_table.io.read_pred === 1.U) || !boomParams.enableDualDCache.B) {
         meta_spatial(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_spatial(i).io.write.valid := false.B
       }
 
-      when (temporal_tag_hit.orR || local_table.io.read_pred === 0.U) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
+      when ((temporal_tag_hit.orR || local_table.io.read_pred === 0.U) && boomParams.enableDualDCache.B) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
         meta_temporal(i).io.write.valid := io.meta_write.fire()
       } .otherwise {
         meta_temporal(i).io.write.valid := false.B
@@ -553,7 +544,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * Data Write (Spatial Cache)
     * **************/
     
-    when (spatial_tag_hit.orR || local_table.io.read_pred === 1.U) {
+    when ((spatial_tag_hit.orR || local_table.io.read_pred === 1.U) || !boomParams.enableDualDCache.B) {
       data_spatial.io.write.valid := io.data_write.fire()
     } .otherwise {
       data_spatial.io.write.valid := false.B
@@ -567,7 +558,7 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * Data Write (Temporal Cache)
     * **************/
 
-    when (temporal_tag_hit.orR || local_table.io.read_pred === 0.U) {
+    when ((temporal_tag_hit.orR || local_table.io.read_pred === 0.U) && boomParams.enableDualDCache.B) {
       data_temporal.io.write.valid := io.data_write.fire()
     } .otherwise {
       data_temporal.io.write.valid := false.B
@@ -609,8 +600,6 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
 
     // data_spatial.io.write.bits.data := io.data_write.bits.data
 
-    
-
 
     // hit check for read. For temporal cache we need also check the word index
     val s1_addr = io.s1_req.map(_.addr) // assume memWidth is 1
@@ -621,14 +610,21 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     /***************
     * Data Response
     * **************/
-
-    io.data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
-
+    if (boomParams.enableDualDCache) {
+      io.data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
+    } else {
+      io.data_resp := data_spatial.io.resp
+    }
+    
     /***************
     * Meta Response
     * **************/
-
-    io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
+    if (boomParams.enableDualDCache) {
+      io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
+    } else {
+      io.meta_resp := widthMap(i => meta_spatial(i).io.resp)
+    }
+    
 
     /***************
     * Performance coutner
@@ -640,8 +636,8 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     io.perf.perf_temporal_access  := data_temporal.io.read(0).valid
     io.perf.perf_temporal_store   := io.data_write.fire() && temporal_tag_hit.orR
     io.perf.perf_temporal_miss    := (!temporal_hit) && RegNext(data_temporal.io.read(0).valid)
-    io.perf.perf_table_evict      := false.B
     io.perf.perf_table_update     := io.data_read.valid && io.is_lsu_req
+    io.perf.perf_table_evict      := local_table.io.perf_table_evict
 }
 
 
@@ -706,7 +702,7 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   ourCache.io.meta_read <> metaReadArb.io.out
 
   // data
-//   val data = Module(if (boomParams.numDCacheBanks == 1) new BoomDuplicatedDataArray else new BoomBankedDataArray)
+  // val data = Module(if (boomParams.numDCacheBanks == 1) new BoomDuplicatedDataArray else new BoomBankedDataArray)
   val dataWriteArb = Module(new Arbiter(new L1DataWriteReq, 2))
   // 0 goes to pipeline, 1 goes to MSHR refills
   val dataReadArb = Module(new Arbiter(new BoomL1DataReadReq, 3))
@@ -741,8 +737,6 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
     metaReadArb.io.in(4).bits.req(w).idx    := io.lsu.req.bits(w).bits.addr >> blockOffBits
     metaReadArb.io.in(4).bits.req(w).way_en := DontCare
     metaReadArb.io.in(4).bits.req(w).tag    := DontCare
-    // DOUGLAS: assign dontcares if wordIdx not used
-    metaReadArb.io.in(4).bits.req(w).wordIdx := DontCare
     // Data read for new requests
     dataReadArb.io.in(2).bits.valid(w)      := io.lsu.req.bits(w).valid
     dataReadArb.io.in(2).bits.req(w).addr   := io.lsu.req.bits(w).bits.addr
@@ -767,8 +761,6 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   metaReadArb.io.in(0).bits.req(0).idx    := mshrs.io.replay.bits.addr >> blockOffBits
   metaReadArb.io.in(0).bits.req(0).way_en := DontCare
   metaReadArb.io.in(0).bits.req(0).tag    := DontCare
-  // DOUGLAS: assign dontcares if wordIdx not used
-  metaReadArb.io.in(0).bits.req(0).wordIdx := DontCare
   // Data read for MSHR replays
   dataReadArb.io.in(0).valid              := mshrs.io.replay.valid
   dataReadArb.io.in(0).bits.req(0).addr   := mshrs.io.replay.bits.addr
@@ -836,8 +828,6 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   metaReadArb.io.in(5).bits.req(0).idx    := mshrs.io.prefetch.bits.addr >> blockOffBits
   metaReadArb.io.in(5).bits.req(0).way_en := DontCare
   metaReadArb.io.in(5).bits.req(0).tag    := DontCare
-  // DOUGLAS: assign dontcares if wordIdx not used
-  metaReadArb.io.in(5).bits.req(0).wordIdx := DontCare
   mshrs.io.prefetch.ready := metaReadArb.io.in(5).ready
   // Prefetch does not need to read data array
 
@@ -993,7 +983,7 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   // MSHRs not ready for request
   val s2_nack_miss   = widthMap(w => s2_valid(w) && !s2_hit(w) && !mshrs.io.req(w).ready)
   // Bank conflict on data arrays
-//   val s2_nack_data   = widthMap(w => data.io.nacks(w))
+  // val s2_nack_data   = widthMap(w => data.io.nacks(w))
   val s2_nack_data   = widthMap(w => false.B) // DOUGLAS: Connect data response 
 
   // Can't allocate MSHR for same set currently being written back

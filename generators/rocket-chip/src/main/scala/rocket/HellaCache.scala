@@ -282,10 +282,6 @@ trait HasHellaCacheModule {
 class L1Metadata(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val coh = new ClientMetadata
   val tag = UInt(width = tagBits)
-  /** DOUGLAS:
-    * Added a field to store the block offset info for temporal cache
-    */
-  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 object L1Metadata {
@@ -293,7 +289,6 @@ object L1Metadata {
     val meta = Wire(new L1Metadata)
     meta.tag := tag
     meta.coh := coh
-    meta.wordIdx := 0.U
     meta
   }
 }
@@ -302,7 +297,6 @@ class L1MetaReadReq(implicit p: Parameters) extends L1HellaCacheBundle()(p) {
   val idx    = UInt(width = idxBits)
   val way_en = UInt(width = nWays)
   val tag    = UInt(width = tagBits)
-  val wordIdx = UInt(width = (offsetmsb - offsetlsb + 1)) 
 }
 
 class L1MetaWriteReq(implicit p: Parameters) extends L1MetaReadReq()(p) {
@@ -318,6 +312,10 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
     // Add
     val myRead = Decoupled(new L1MetaWriteReq).flip
     val myResp = Vec(nWays, rstVal.cloneType).asOutput
+    // val myResp_is_wb = Output(Vec(nSets, Vec(nWays, Bool())))
+    // val wb_en = Input(Bool())
+    // val wb_idx = Input(UInt(width = idxBits))
+    // val wb_way = Input(UInt(width = nWays))
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -339,10 +337,16 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
 
   // Add
   val tag_array_reg = Reg(Vec(nSets, Vec(nWays, UInt(metabits.W))))
-  when (wen && wmask.reduce(_ || _)) {
-    tag_array_reg(waddr) := Vec(tag_array_reg(waddr).zip(wmask).map { 
-      case (reg, mask) => Mux(mask, wdata, reg) 
-    })
+  // val is_wb = Reg(Vec(nSets, Vec(nWays, Bool())))
+  for (i <- 0 until nWays) {
+    // // Update writeback bits prior to regular write
+    // when(wb_en && wb_way(i)) {
+    //   is_wb(wb_idx)(i) := true.B
+    // }
+    when (wen && wmask(i)) {
+      tag_array_reg(waddr)(i) := wdata
+      is_wb(waddr)(i) := false.B
+    }
   }
   io.myResp := tag_array_reg(io.myRead.bits.idx).map(rstVal.fromBits(_))
 }

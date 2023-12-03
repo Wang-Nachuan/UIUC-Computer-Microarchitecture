@@ -55,5 +55,5 @@ class MediumBoomBaseConfig extends Config(
   new chipyard.config.AbstractConfig)
 
 class MediumBoomDualCacheConfig extends Config(
-  new boom.common.WithNMediumBoomsBase(1) ++
+  new boom.common.WithNMediumBoomsDualCache(1) ++
   new chipyard.config.AbstractConfig)

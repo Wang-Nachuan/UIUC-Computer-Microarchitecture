@@ -107,7 +107,8 @@ class WithNSmallBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends 
               numFetchBufferEntries = 8,
               ftq = FtqParameters(nEntries=16),
               nPerfCounters = 32,
-              fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true))
+              fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
+              enableDualDCache = false
             ),
             dcache = Some(
               DCacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=4, nMSHRs=2, nTLBWays=8)
@@ -531,6 +532,8 @@ class WithSWBPD extends Config((site, here, up) => {
 // Self-defined Configs
 // ---------------------
 
+
+
 class WithNMediumBoomsBase(n: Int = 1, overrideIdOffset: Option[Int] = None) extends Config(
   new WithTAGELBPD ++ // Default to TAGE-L BPD
   new Config((site, here, up) => {
@@ -554,6 +557,59 @@ class WithNMediumBoomsBase(n: Int = 1, overrideIdOffset: Option[Int] = None) ext
               ftq = FtqParameters(nEntries=32),
               fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
               enablePrefetching = false,
+              enableDualDCache = false,
+
+              /* Don't change below */
+              decodeWidth = coreWidth,  
+              numFetchBufferEntries = coreWidth * 8,
+              numDCacheBanks = memWidth,
+              issueParams = Seq(
+                IssueParams(issueWidth=memWidth, numEntries=12, iqType=IQT_MEM.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=coreWidth, numEntries=20, iqType=IQT_INT.litValue, dispatchWidth=coreWidth),
+                IssueParams(issueWidth=1, numEntries=16, iqType=IQT_FP.litValue , dispatchWidth=coreWidth))    
+              /* Don't change above */
+            ),
+            dcache = Some(
+              DCacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=4, nMSHRs=2, nTLBWays=8)
+            ),
+            icache = Some(
+              ICacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=4, fetchBytes=2*4)
+            ),
+            hartId = i + idOffset
+          ),
+          crossingParams = RocketCrossingParams()
+        )
+      } ++ prev
+    }
+    case SystemBusKey => up(SystemBusKey, site).copy(beatBytes = 8)
+    case XLen => 64
+  })
+)
+
+class WithNMediumBoomsDualCache(n: Int = 1, overrideIdOffset: Option[Int] = None) extends Config(
+  new WithTAGELBPD ++ // Default to TAGE-L BPD
+  new Config((site, here, up) => {
+    case TilesLocated(InSubsystem) => {
+      val prev = up(TilesLocated(InSubsystem), site)
+      val idOffset = overrideIdOffset.getOrElse(prev.size)
+      (0 until n).map { i =>
+        val coreWidth = 2
+        val memWidth = 1
+        BoomTileAttachParams(
+          tileParams = BoomTileParams(
+            core = BoomCoreParams(
+              fetchWidth = 4,
+              numRobEntries = 64,
+              numIntPhysRegisters = 80,
+              numFpPhysRegisters = 64,
+              numLdqEntries = 16,
+              numStqEntries = 16,
+              maxBrCount = 12,
+              nPerfCounters = 32,
+              ftq = FtqParameters(nEntries=32),
+              fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
+              enablePrefetching = false,
+              enableDualDCache = true,
 
               /* Don't change below */
               decodeWidth = coreWidth,  

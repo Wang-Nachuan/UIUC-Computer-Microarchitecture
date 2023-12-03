@@ -15,6 +15,7 @@ import boom.exu.BrResolutionInfo
 import boom.util.{IsKilledByBranch, GetNewBrMask, BranchKillableQueue, IsOlder, UpdateBrMask}
 
 class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
+    with HasL1HellaCacheParameters
 {
     val io = IO(new Bundle {
         val init = Input(Bool())        // True - initialize this entry for a new instruction
@@ -31,8 +32,8 @@ class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
     val state = RegInit(st_trans)                   // Behavior of instruction according to its stride      
     val state_next = WireInit(state)
 
-    val MAX_SPATIAL_STRIDE = 16.U       // TODO: Teplace this with the spatial cache line size
-    val MIN_MOSTLYONE_LENGTH = 4.U      // TODO: Find a appropriate length
+    val max_spatial_stride = rowWords * 4
+    val min_mostlyone_length = 4
 
     state_next := state
 
@@ -59,7 +60,9 @@ class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
             }
         } .elsewhen (state === st_steady) {
             when (io.addr - last_addr =/= stride || io.addr - last_addr === 0.U) {
-                state_next := st_trans
+                when (length <= min_mostlyone_length.U) {
+                    state_next := st_trans
+                }
             }
         }
     }
@@ -67,17 +70,13 @@ class LocalityTableEntry(implicit p: Parameters) extends BoomModule()(p)
     state := state_next
 
     when (state === st_steady) {
-        when (stride < MAX_SPATIAL_STRIDE) {
+        when (stride < max_spatial_stride.U) {
             io.pred := 1.U
         } .otherwise {
             io.pred := 0.U
         }
     } .otherwise {
-        when (length > MIN_MOSTLYONE_LENGTH && stride < MAX_SPATIAL_STRIDE) {
-            io.pred := 1.U
-        } .otherwise {
-            io.pred := 0.U
-        }
+        io.pred := 0.U
     }
 }
 

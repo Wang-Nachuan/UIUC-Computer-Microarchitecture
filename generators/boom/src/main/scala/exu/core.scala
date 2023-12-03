@@ -252,7 +252,7 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
       ("prefetcher commit", () => io.lsu.perf_prefetch_commit))),
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
-//      ("I$ blocked",                        () => icache_blocked),
+      // ("I$ blocked",                        () => icache_blocked),
       // ("nop",                               () => false.B),
       // ("branch misprediction",              () => br_unit.brinfo.mispredict),
       // ("control-flow target misprediction", () => br_unit.brinfo.mispredict &&
@@ -267,7 +267,7 @@ class BoomCore(usingTrace: Boolean)(implicit p: Parameters) extends BoomModule
       ("Temporal cache store",      () => io.dcache_perf.perf_temporal_store),
       ("Temporal cache miss",       () => io.dcache_perf.perf_temporal_miss),
       ("Prediction table eviction", () => io.dcache_perf.perf_table_evict),
-      ("Prediction table update",   () => io.dcache_perf.perf_table_update),
+      ("Prediction table update",   () => io.dcache_perf.perf_table_update)
     )),
 
     new freechips.rocketchip.rocket.EventSet((mask, hits) => (mask & hits).orR, Seq(
