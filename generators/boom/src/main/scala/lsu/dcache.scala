@@ -447,6 +447,8 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
       val s3_req      = Input(new BoomDCacheReq)
       val is_lsu_req  = Input(Bool())
       val perf        = new DCachePerfIO
+      val wb_way      = Input(UInt(nWays.W))
+      val tag_match   = Input(Vec(memWidth, Bool()))
     }
 
     /***************
@@ -479,11 +481,11 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * **************/
 
     for (w <- 0 until memWidth) {
-        meta_spatial(w).io.read.valid  := io.meta_read.valid
-        meta_spatial(w).io.read.bits   := io.meta_read.bits.req(w)
+      meta_spatial(w).io.read.valid  := io.meta_read.valid
+      meta_spatial(w).io.read.bits   := io.meta_read.bits.req(w)
 
-        meta_temporal(w).io.read.valid  := io.meta_read.valid
-        meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
+      meta_temporal(w).io.read.valid  := io.meta_read.valid
+      meta_temporal(w).io.read.bits   := io.meta_read.bits.req(w)
     }
 
     /***************
@@ -491,29 +493,53 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     * **************/
 
     for (i <- 0 until memWidth) {
-        meta_spatial(i).io.myRead.valid  := io.meta_write.fire()  // valid -> fire
-        meta_spatial(i).io.myRead.bits   := io.meta_write.bits // casting L1MetaWriteReq to L1MetaReadReq
+      meta_spatial(i).io.myRead.valid  := io.meta_write.fire()  // valid -> fire
+      meta_spatial(i).io.myRead.bits   := io.meta_write.bits
 
-        meta_temporal(i).io.myRead.valid  := io.meta_write.fire() // valid -> fire
-        meta_temporal(i).io.myRead.bits   := io.meta_write.bits // casting L1MetaWriteReq to L1MetaReadReq
+      meta_temporal(i).io.myRead.valid  := io.meta_write.fire() // valid -> fire
+      meta_temporal(i).io.myRead.bits   := io.meta_write.bits
     }
 
     val spatial_tag_hit = wayMap((w: Int) => meta_spatial(0).io.myResp(w).tag === io.meta_write.bits.data.tag)
     val temporal_tag_hit = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === io.meta_write.bits.data.tag)
+
+    val spatial_tag_hit_wb = wayMap((w: Int) => spatial_tag_hit(w) && meta_spatial(0).io.myResp_wb(w))
+    val temporal_tag_hit_wb = wayMap((w: Int) => temporal_tag_hit(w) && meta_temporal(0).io.myResp_wb(w))
+
+    val spatial_mask_match = wayMap((w: Int) => spatial_tag_hit(w) && io.meta_write.bits.way_en(w)).orR
+    val temporal_mask_match = wayMap((w: Int) => temporal_tag_hit(w) && io.meta_write.bits.way_en(w)).orR
+
     // && meta_temporal(0).io.myResp(w).wordIdx === meta_temporal(0).io.write.bits.data.wordIdx)
     // val temporal_tag_hit_only = wayMap((w: Int) => meta_temporal(0).io.myResp(w).tag === meta_temporal(0).io.write.bits.data.tag &&
     //   meta_temporal(0).io.myResp(w).wordIdx =/= meta_temporal(0).io.write.bits.data.wordIdx)
 
     for (i <- 0 until memWidth) {
-      when ((spatial_tag_hit.orR || local_table.io.read_pred === 1.U) || !boomParams.enableDualDCache.B) {
-        meta_spatial(i).io.write.valid := io.meta_write.fire()
-      } .otherwise {
+      if (boomParams.enableDualDCache) {
         meta_spatial(i).io.write.valid := false.B
-      }
-
-      when ((temporal_tag_hit.orR || local_table.io.read_pred === 0.U) && boomParams.enableDualDCache.B) {// when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
-        meta_temporal(i).io.write.valid := io.meta_write.fire()
-      } .otherwise {
+        meta_temporal(i).io.write.valid := false.B
+        // when (spatial_tag_hit.orR) {
+        when (spatial_mask_match) {
+          meta_spatial(i).io.write.valid := io.meta_write.fire()
+        // } .elsewhen (temporal_tag_hit.orR) {
+        } .elsewhen (temporal_mask_match) {
+          meta_temporal(i).io.write.valid := io.meta_write.fire()
+        } .otherwise {
+          // meta_spatial(i).io.write.valid := io.meta_write.fire()
+          // meta_temporal(i).io.write.valid := io.meta_write.fire()
+          when (spatial_tag_hit_wb.orR) {
+            meta_spatial(i).io.write.valid := io.meta_write.fire()
+          } .elsewhen (temporal_tag_hit_wb.orR) {
+            meta_temporal(i).io.write.valid := io.meta_write.fire()
+          } .otherwise {
+            when (local_table.io.read_pred === 1.U) {
+              meta_spatial(i).io.write.valid := io.meta_write.fire()
+            } .otherwise {
+              meta_temporal(i).io.write.valid := io.meta_write.fire()
+            }
+          }
+        }
+      } else {
+        meta_spatial(i).io.write.valid := io.meta_write.fire()
         meta_temporal(i).io.write.valid := false.B
       }
 
@@ -541,65 +567,41 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
 
 
     /***************
-    * Data Write (Spatial Cache)
+    * Data Write 
     * **************/
     
-    when ((spatial_tag_hit.orR || local_table.io.read_pred === 1.U) || !boomParams.enableDualDCache.B) {
-      data_spatial.io.write.valid := io.data_write.fire()
-    } .otherwise {
+    if (boomParams.enableDualDCache) {
       data_spatial.io.write.valid := false.B
-    }
-
-    data_spatial.io.write.bits := io.data_write.bits
-
-    io.data_write.ready := true.B
-
-    /***************
-    * Data Write (Temporal Cache)
-    * **************/
-
-    when ((temporal_tag_hit.orR || local_table.io.read_pred === 0.U) && boomParams.enableDualDCache.B) {
-      data_temporal.io.write.valid := io.data_write.fire()
-    } .otherwise {
+      data_temporal.io.write.valid := false.B
+      // when (spatial_tag_hit.orR) {
+      when (spatial_mask_match) {
+        data_spatial.io.write.valid := io.data_write.fire()
+      // } .elsewhen (temporal_tag_hit.orR) {
+      } .elsewhen (temporal_mask_match) {
+        data_temporal.io.write.valid := io.data_write.fire()
+      } .otherwise {
+        // data_spatial.io.write.valid := io.data_write.fire()
+        // data_temporal.io.write.valid := io.data_write.fire()
+        when (spatial_tag_hit_wb.orR) {
+          data_spatial.io.write.valid := io.data_write.fire()
+        } .elsewhen (temporal_tag_hit_wb.orR) {
+          data_temporal.io.write.valid := io.data_write.fire()
+        } .otherwise {
+          when (local_table.io.read_pred === 1.U) {
+            data_spatial.io.write.valid := io.data_write.fire()
+          } .otherwise {
+            data_temporal.io.write.valid := io.data_write.fire()
+          }
+        }
+      }
+    } else {
+      data_spatial.io.write.valid := io.data_write.fire()
       data_temporal.io.write.valid := false.B
     }
 
+    data_spatial.io.write.bits := io.data_write.bits
     data_temporal.io.write.bits := io.data_write.bits
-
-    // when (temporal_tag_hit.orR || temporal_tag_hit_only.orR) {
-    //   data_temporal.io.write.valid := io.data_write.fire()
-    // } .otherwise {
-    //   data_temporal.io.write.valid := false.B
-    // }
-
-    // when (temporal_tag_hit_only.orR) {
-      
-    // } .elsewhen () {
-    //   data_temporal.io.write.bits := io.data_write.bits
-    // }
-
-    // val combined_data = Wire(Vec(rowWords, Bits(encDataBits.W))) 
-    // val old_data = data_temporal.io.myResp(0)(OHToUInt(temporal_tag_hit_only))
-    // val new_data = io.data_write.bits.data
-    // val wordIdxStart = meta_temporal(0).io.myResp(OHToUInt(io.data_write.bits.way_en)).wordIdx
-
-    // for (i <- 0 until rowWords) {
-    //   when (i.U === wordIdxStart) {
-    //     combined_data(i) := old_data(encDataBits*(i+1)-1, encDataBits*i)
-    //   } .otherwise {
-    //     combined_data(i) := new_data(encDataBits*(i+1)-1, encDataBits*i)
-    //   }
-    // }
-
-    // // If there exists any hits that only hit at tag (but not wordIdx)
-    // when (temporal_tag_hit_only.orR) {
-    //   data_temporal.io.write.bits.data := Cat(combined_data)
-    // } .otherwise {
-    //   data_temporal.io.write.bits.data := io.data_write.bits.data
-    // }
-
-    // data_spatial.io.write.bits.data := io.data_write.bits.data
-
+    io.data_write.ready := true.B
 
     // hit check for read. For temporal cache we need also check the word index
     val s1_addr = io.s1_req.map(_.addr) // assume memWidth is 1
@@ -610,8 +612,10 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     /***************
     * Data Response
     * **************/
+
     if (boomParams.enableDualDCache) {
-      io.data_resp := Mux(temporal_hit && !spatial_hit, data_temporal.io.resp, data_spatial.io.resp)
+      // io.data_resp := Mux(spatial_hit, data_spatial.io.resp, data_temporal.io.resp)
+      io.data_resp := Mux(temporal_hit, data_temporal.io.resp, data_spatial.io.resp)
     } else {
       io.data_resp := data_spatial.io.resp
     }
@@ -619,12 +623,28 @@ class myDCacheArrays (implicit p: Parameters) extends BoomModule()(p)
     /***************
     * Meta Response
     * **************/
+
     if (boomParams.enableDualDCache) {
-      io.meta_resp := widthMap(i => Mux(temporal_hit && !spatial_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
+      // io.meta_resp := widthMap(i => Mux(spatial_hit, meta_spatial(i).io.resp, meta_temporal(i).io.resp))
+      io.meta_resp := widthMap(i => Mux(temporal_hit, meta_temporal(i).io.resp, meta_spatial(i).io.resp))
     } else {
       io.meta_resp := widthMap(i => meta_spatial(i).io.resp)
     }
-    
+
+    /***************
+    * Writeback
+    * **************/
+    if (boomParams.enableDualDCache) {
+      for (w <- 0 until memWidth) {
+        meta_spatial(w).io.wb_en := !temporal_hit && !io.tag_match(0)
+        meta_spatial(w).io.wb_idx := RegNext(io.meta_read.bits.req(w).idx)
+        meta_spatial(w).io.wb_way := io.wb_way
+
+        meta_temporal(w).io.wb_en := temporal_hit && !io.tag_match(0)
+        meta_temporal(w).io.wb_idx := RegNext(io.meta_read.bits.req(w).idx)
+        meta_temporal(w).io.wb_way := io.wb_way
+      }
+    }
 
     /***************
     * Performance coutner
@@ -897,6 +917,7 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   for (w <- 0 until memWidth)
     s2_req(w).uop.br_mask := GetNewBrMask(io.lsu.brupdate, s1_req(w).uop)
 
+  ourCache.io.tag_match := s1_tag_match_way.map(_.orR)
   val s2_tag_match_way = RegNext(s1_tag_match_way)
   val s2_tag_match     = s2_tag_match_way.map(_.orR)
   val s2_hit_state     = widthMap(i => Mux1H(s2_tag_match_way(i), wayMap((w: Int) => RegNext(ourCache.io.meta_resp(i)(w).coh)))) // DOUGLAS: connect metadata response
@@ -975,6 +996,7 @@ class myBoomNonBlockingDCacheModule(outer: BoomNonBlockingDCache) extends LazyMo
   val s1_replaced_way_en = UIntToOH(replacer.way)
   val s2_replaced_way_en = UIntToOH(RegNext(replacer.way))
   val s2_repl_meta = widthMap(i => Mux1H(s2_replaced_way_en, wayMap((w: Int) => RegNext(ourCache.io.meta_resp(i)(w))).toSeq)) // DOUGLAS: Connected metadata response
+  ourCache.io.wb_way := s1_replaced_way_en
 
   // nack because of incoming probe
   val s2_nack_hit    = RegNext(VecInit(s1_nack))

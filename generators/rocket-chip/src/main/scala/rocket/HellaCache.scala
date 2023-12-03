@@ -312,10 +312,10 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
     // Add
     val myRead = Decoupled(new L1MetaWriteReq).flip
     val myResp = Vec(nWays, rstVal.cloneType).asOutput
-    // val myResp_is_wb = Output(Vec(nSets, Vec(nWays, Bool())))
-    // val wb_en = Input(Bool())
-    // val wb_idx = Input(UInt(width = idxBits))
-    // val wb_way = Input(UInt(width = nWays))
+    val myResp_wb = Output(Vec(nWays, Bool()))
+    val wb_en = Input(Bool())
+    val wb_idx = Input(UInt(width = idxBits))
+    val wb_way = Input(UInt(width = nWays))
   }
   val rst_cnt = Reg(init=UInt(0, log2Up(nSets+1)))
   val rst = rst_cnt < UInt(nSets)
@@ -337,16 +337,17 @@ class L1MetadataArray[T <: L1Metadata](onReset: () => T)(implicit p: Parameters)
 
   // Add
   val tag_array_reg = Reg(Vec(nSets, Vec(nWays, UInt(metabits.W))))
-  // val is_wb = Reg(Vec(nSets, Vec(nWays, Bool())))
+  val is_wb = Reg(Vec(nSets, Vec(nWays, Bool())))
   for (i <- 0 until nWays) {
-    // // Update writeback bits prior to regular write
-    // when(wb_en && wb_way(i)) {
-    //   is_wb(wb_idx)(i) := true.B
-    // }
     when (wen && wmask(i)) {
       tag_array_reg(waddr)(i) := wdata
       is_wb(waddr)(i) := false.B
     }
+    // Update writeback bits after regular write to maintain program order
+    when(io.wb_en && io.wb_way(i)) {
+      is_wb(io.wb_idx)(i) := true.B
+    }
   }
   io.myResp := tag_array_reg(io.myRead.bits.idx).map(rstVal.fromBits(_))
+  io.myResp_wb := is_wb(io.myRead.bits.idx)
 }

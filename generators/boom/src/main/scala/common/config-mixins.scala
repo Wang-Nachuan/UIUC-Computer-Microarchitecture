@@ -108,7 +108,7 @@ class WithNSmallBooms(n: Int = 1, overrideIdOffset: Option[Int] = None) extends 
               ftq = FtqParameters(nEntries=16),
               nPerfCounters = 32,
               fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
-              enableDualDCache = false
+              enableDualDCache = true
             ),
             dcache = Some(
               DCacheParams(rowBits = site(SystemBusKey).beatBits, nSets=64, nWays=4, nMSHRs=2, nTLBWays=8)
@@ -557,7 +557,7 @@ class WithNMediumBoomsBase(n: Int = 1, overrideIdOffset: Option[Int] = None) ext
               ftq = FtqParameters(nEntries=32),
               fpu = Some(freechips.rocketchip.tile.FPUParams(sfmaLatency=4, dfmaLatency=4, divSqrt=true)),
               enablePrefetching = false,
-              enableDualDCache = false,
+              enableDualDCache = true,
 
               /* Don't change below */
               decodeWidth = coreWidth,  

@@ -45,7 +45,7 @@ static uintptr_t counters[NUM_COUNTERS];
 // static char* counter_names[] = {"mcycle", "minstruction", "dcache miss", "dcache writeback", "load", "store", "DTLB miss", "prefetcher fire", "prefetcher commit"};
 static char* counter_names[] = {"minstruction", "mcycle", "load", "store", "dcache miss", "dcache eviction", 
                                 "Spatial cache access", "Spatial cache store", "Spatial cache miss",
-                                "Temporal cache access", "Spatial cache store", "Temporal cache miss",
+                                "Temporal cache access", "Temporal cache store", "Temporal cache miss",
                                 "Prediction table eviction", "Prediction table update"};
 
 void setStats(int enable)
